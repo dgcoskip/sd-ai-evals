@@ -37,7 +37,10 @@ function promptUserForFile(files) {
             input: process.stdin,
             output: process.stdout
         });
-
+        console.log("Available files in the current directory:");
+        fs.readdirSync('.').forEach((file, index) => {
+            console.log(`${index + 1}: ${file}`);
+        });
         console.log("Available result files:");
         files.forEach((file, index) => {
             console.log(`${index + 1}: ${file}`);
@@ -56,8 +59,10 @@ function promptUserForFile(files) {
     });
 }
 
+// give me todays date and then add two ai!
+
 async function main() {
-    // print the time ai!
+    console.log(`Current time: ${new Date().toLocaleString()}`);
     const files = listMatchingFiles(/^.*full_results\.json$/);
     if (files.length === 0) {
         console.error("No matching files found.");
