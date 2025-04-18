@@ -421,3 +421,77 @@ printTable(summary);
 fs.writeFileSync(`${experimentResultsName}_summary.csv`, await summary.toCSV());
 
 console.log(chalk.blue(`Wrote result and summaries to various ${chalk.bold(experimentResultsName)} files`));
+
+// --- Leaderboard HTML Generation ---
+
+// Aggregate results by engineConfigName
+const grouped = {};
+responses.forEach((result) => {
+  const name = result.engineConfigName;
+  if (!grouped[name]) grouped[name] = [];
+  grouped[name].push(result);
+});
+
+const leaderboard = Object.entries(grouped).map(([engineConfigName, arr]) => {
+  const passAvg = arr.reduce((acc, r) => acc + (r.pass ? 1 : 0), 0) / arr.length;
+  const avgDuration = arr.reduce((acc, r) => acc + (r.duration || 0), 0) / arr.length;
+  return { engineConfigName, passAvg, avgDuration };
+});
+
+// Generate HTML
+const leaderboardRows = leaderboard.map(
+  (row) =>
+    `<tr><td>${row.engineConfigName}</td><td>${row.passAvg.toFixed(3)}</td><td>${Math.round(row.avgDuration)}</td></tr>`
+).join('\n');
+
+const plotlyData = {
+  x: leaderboard.map((row) => row.avgDuration),
+  y: leaderboard.map((row) => row.passAvg),
+  text: leaderboard.map((row) => row.engineConfigName),
+};
+
+const html = `
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="UTF-8">
+  <title>Leaderboard</title>
+  <script src="https://cdn.plot.ly/plotly-latest.min.js"></script>
+</head>
+<body>
+  <h2>Leaderboard</h2>
+  <table border="1" cellpadding="4" cellspacing="0">
+    <thead>
+      <tr>
+        <th>engineConfigName</th>
+        <th>Pass Average</th>
+        <th>Average Duration (ms)</th>
+      </tr>
+    </thead>
+    <tbody>
+      ${leaderboardRows}
+    </tbody>
+  </table>
+  <div id="scatter" style="width:600px;height:400px;"></div>
+  <script>
+    Plotly.newPlot('scatter', [{
+      x: ${JSON.stringify(plotlyData.x)},
+      y: ${JSON.stringify(plotlyData.y)},
+      text: ${JSON.stringify(plotlyData.text)},
+      mode: 'markers+text',
+      type: 'scatter',
+      textposition: 'top center',
+      marker: { size: 12 }
+    }], {
+      xaxis: { title: 'Average Duration (ms)' },
+      yaxis: { title: 'Pass Average', range: [0, 1] },
+      margin: { t: 20 }
+    });
+  </script>
+</body>
+</html>
+`;
+
+const leaderboardFile = `${experimentResultsName}_leaderboard.html`;
+fs.writeFileSync(leaderboardFile, html);
+console.log(chalk.green(`Leaderboard HTML written to ${leaderboardFile}`));
