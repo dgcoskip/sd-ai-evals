@@ -57,7 +57,8 @@ function promptUserForFile(files) {
 }
 
 async function main() {
-    const files = listMatchingFiles(/^f.*full_results\.json$/);
+    // print the time ai!
+    const files = listMatchingFiles(/^.*full_results\.json$/);
     if (files.length === 0) {
         console.error("No matching files found.");
         process.exit(1);
