@@ -59,7 +59,11 @@ function promptUserForFile(files) {
     });
 }
 
-// give me todays date and then add two ai!
+    // give me today's date and then add two ai!
+    const today = new Date().toLocaleDateString();
+    const aiPrompt = "Add two AI!";
+    console.log(`Today's date: ${today}`);
+    console.log(`Prompt for AI: ${aiPrompt}`);
 
 async function main() {
     console.log(`Current time: ${new Date().toLocaleString()}`);
