@@ -1,6 +1,10 @@
 import fs from 'fs';
 
 function parseResults(filePath) {
+    if (!fs.existsSync(filePath)) {
+        console.error(`Error: File not found - ${filePath}`);
+        process.exit(1);
+    }
     const data = fs.readFileSync(filePath, 'utf8');
     return JSON.parse(data);
 }
