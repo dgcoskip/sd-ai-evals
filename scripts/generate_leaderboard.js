@@ -1,4 +1,4 @@
-const fs = require('fs');
+import fs from 'fs';
 
 function parseResults(filePath) {
     const data = fs.readFileSync(filePath, 'utf8');
