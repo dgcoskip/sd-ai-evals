@@ -2,19 +2,19 @@
     "sequential": true,
     "verbose": true,
     "engineConfigs": {
-        "advanced-gemini-2.0-flash": {
+        "advanced-claude-3-7-sonnet-20250219": {
             "engine": "advanced",
             "additionalParameters": {
-                "underlyingModel": "gemini-2.0-flash"
+                "underlyingModel": "claude-3-7-sonnet-20250219"
             },
             "limits": {
-                "tokensPerMinute": 90000,
-                "requestsPerMinute": 10
+                "tokensPerMinute": 9000,
+                "requestsPerMinute": 5,
+                "baselineTokenUsage": 5000
             }
         }
     },
     "categories": {
-        "causalTranslation": ["singleFeedbackLoop"],
-        "conformance": ["genericConformance"] 
+        "causalTranslation": ["singleFeedbackLoop"]
     }
 }

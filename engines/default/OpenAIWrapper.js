@@ -15,6 +15,7 @@ class ResponseFormatError extends Error {
 const ModelType = Object.freeze({
     GEMINI:   Symbol("Gemini"),
     OPEN_AI:  Symbol("OpenAI"),
+    CLAUDE:  Symbol("Claude"),
     LLAMA: Symbol("Llama"),
     DEEPSEEK: Symbol("Deepseek")
 });
@@ -31,7 +32,7 @@ class ModelCapabilities {
     constructor(modelName) {
         this.name = modelName;
 
-        this.hasStructuredOutput = modelName !== 'o1-mini';
+        this.hasStructuredOutput = (modelName !== 'o1-mini' || modelName.includes("claude"));
         this.hasSystemMode = modelName !== 'o1-mini';
         this.hasTemperature = !modelName.startsWith('o');
         if (modelName.includes('gemini') || modelName.includes('llama')) {
@@ -44,6 +45,8 @@ class ModelCapabilities {
     get kind() {
         if (this.name.includes('gemini')) {
             return ModelType.GEMINI;
+        } else if (this.name.includes('claude')) {
+            return ModelType.CLAUDE;
         } else if (this.name.includes('llama')) {
             return ModelType.LLAMA;
         } else if (this.name.includes('deepseek')) {
@@ -58,7 +61,7 @@ class OpenAIWrapper {
     
     static NON_STRUCTURED_OUTPUT_SYSTEM_PROMPT_ADDITION =
 `
-You must respond in a very specific JSON format without any deviations.  Below are 6 examples of this JSON format.  Please use this format without making any changes whatsoever to it.
+You must respond in a very specific JSON format without any deviations. Do not include any content in you response other than this json. Below are 6 examples of this JSON format.  Please use this format without making any changes whatsoever to it.
 
 Example 1 of a user input:
 "when death rate goes up, population decreases"
@@ -181,6 +184,7 @@ You will conduct a multistep process:
         problemStatement: null,
         openAIKey: null,
         googleKey: null,
+        anthropicKey: null,
         underlyingModel: OpenAIWrapper.DEFAULT_MODEL,
         systemPrompt: OpenAIWrapper.DEFAULT_SYSTEM_PROPMT,
         assistantPrompt: OpenAIWrapper.DEFAULT_ASSISTANT_PROMPT,
@@ -212,6 +216,10 @@ You will conduct a multistep process:
             this.#data.googleKey = process.env.GOOGLE_API_KEY
         }
 
+        if (!this.#data.anthropicKey) {
+            this.#data.anthropicKey = process.env.ANTHROPIC_API_KEY
+        }
+
         this.#model = new ModelCapabilities(this.#data.underlyingModel);
 
         switch (this.#model.kind) {
@@ -219,6 +227,13 @@ You will conduct a multistep process:
                 this.#openAIAPI = new OpenAI({
                     apiKey: this.#data.googleKey,
                     baseURL: "https://generativelanguage.googleapis.com/v1beta/openai"
+                });
+                break;
+            case ModelType.CLAUDE:
+                console.log("bro...")
+                this.#openAIAPI = new OpenAI({
+                    apiKey: this.#data.anthropicKey,
+                    baseURL: "https://api.anthropic.com/v1/"
                 });
                 break;
             case ModelType.OPEN_AI:
@@ -377,7 +392,12 @@ You will conduct a multistep process:
             reasoning_effort: reasoningEffort
         });
 
+        console.log(originalCompletion)
+
         const originalResponse = originalCompletion.choices[0].message;
+
+        console.log(originalResponse)
+
         if (originalResponse.refusal) {
             throw new ResponseFormatError(originalResponse.refusal);
         } else if (originalResponse.parsed) {
