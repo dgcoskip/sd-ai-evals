@@ -1,12 +1,6 @@
-// RecursiveCausalEngine.js
+import OpenAI from "openai";
 
-import Engine from '../default/engine.js';
-import OpenAIWrapper from '../default/OpenAIWrapper.js';
-
-class RecursiveCausalEngine extends Engine {
-    constructor() {
-        super();
-    }
+class RecursiveCausalEngine {
 
     additionalParameters() {
         return super.additionalParameters().concat([
@@ -34,44 +28,79 @@ class RecursiveCausalEngine extends Engine {
 
      async generate(prompt, currentModel, parameters) {
         try {
-            const wrapper = new OpenAIWrapper(parameters);
-
-            const problemStatement = parameters.problemStatement;
-            const mainTopics = parameters.mainTopics.split(',').map(x => x.trim()).filter(x => x.length > 0);
+            console.log("here are the params I got", parameters)
+            
+            const mainTopics = parameters.mainTopics.split(',').map(x => x.trim().toLowerCase()).filter(x => x.length > 0);
             const maxDepth = parameters.depth;
 
             const explored = new Set();
             const relationships = [];
 
             async function exploreTopic(topic, depth) {
+                console.log("attempting to explore topic", topic, "at depth", depth)
                 if (depth > maxDepth || explored.has(topic.toLowerCase())) {
+                    console.log("early quitting this exploration")
                     return;
                 }
 
                 explored.add(topic.toLowerCase());
 
-                const customPrompt = `Given the following problem statement:\n\n"""\n${problemStatement}\n"""\n\nIdentify causes (drivers) and effects (impacts) of the topic: "${topic}".\n\nReturn the relationships as a JSON array where each relationship has:\n- from: variable\n- to: variable\n- polarity: + or -\n- reasoning: why this relationship exists\n- polarityReasoning: why this polarity (+ or -) is appropriate.`;
+                const customPrompt = `Given the following prompt:"""
+${prompt}
+"""
 
-                const response = await wrapper.generateDiagram(customPrompt, currentModel);
+Identify causes (drivers) and effects (impacts) of the topic: "${topic}".
 
-                if (response.relationships && response.relationships.length > 0) {
-                    relationships.push(...response.relationships);
+Return the relationships as a JSON array where each relationship has:
+- from: variable
+- to: variable
+- polarity: + or -
+- reasoning: why this relationship exists
+- polarityReasoning: why this polarity (+ or -) is appropriate.`;
+
+                const openAIClient = new OpenAI({
+                    apiKey: process.env.OPENAI_API_KEY
+                });
+
+                const request = {
+                    messages: [{
+                        role: "user",
+                        content: customPrompt 
+                    }],
+                    model: "gpt-4.1-nano", // fast and cheap, great for hacking together pipelines, not great for best quality
+                    temperature: 0,
+                };
+                console.log("here's exactly what you'll send openai", request)
+
+                const rawResponse = await openAIClient.chat.completions.create(request);
+
+                console.log("here's exactly how openai responded", JSON.stringify(rawResponse, null, 2))
+
+                const response = JSON.parse(rawResponse.choices[0].message.content);
+                console.log("the response", response)
+                if (response) {
+                    console.log("actually got these relationships to stuff into full relationships list", response)
+                    relationships.push(...response);
 
                     const nextTopics = new Set();
-                    for (const rel of response.relationships) {
+                    for (const rel of response) {
                         if (!explored.has(rel.from.toLowerCase())) {
-                            nextTopics.add(rel.from);
+                            console.log("adding new topic to explore", rel.from.toLowerCase())
+                            nextTopics.add(rel.from.toLowerCase())
                         }
                         if (!explored.has(rel.to.toLowerCase())) {
-                            nextTopics.add(rel.to);
+                            console.log("adding new topic to explore", rel.to.toLowerCase())
+                            nextTopics.add(rel.to.toLowerCase());
                         }
                     }
 
+                    console.log("ripping through these topics", nextTopics)
                     for (const nextTopic of nextTopics) {
                         await exploreTopic(nextTopic, depth + 1);
                     }
+                } else {
+                    console.log("response came back empty of relationships")
                 }
-                // silently skip if no relationships are found
             }
 
             for (const topic of mainTopics) {
