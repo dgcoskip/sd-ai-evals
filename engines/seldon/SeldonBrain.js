@@ -1,4 +1,5 @@
-import projectUtils, { LLMWrapper } from '../../utils.js'
+import { LLMWrapper } from '../../utils.js'
+import { marked } from 'marked';
 
 class ResponseFormatError extends Error {
     constructor(message) {
@@ -12,7 +13,7 @@ class SeldonEngineBrain {
     static DEFAULT_SYSTEM_PROMPT = 
 `You are the world's best System Dynamics Modeler. Users will ask you questions about their model, it is your job to think about their question and answer it to the best of your abilities.  If you don't have an answer, that is okay, and when that happens you need to instead suggest to the user a different way to ask their question that you think might allow you to answer it with confidence.  If you are not confident in your answer, tell that to the user.  Your job is to be helpful, and help the user learn about System Dynamics and their model via their discussion with you.  You should always explain your reasoning and include a step by step guide for how you got to your response.
 
-Your answer should come in the form of simple HTML formatted text.  Use only the HTML tags <h4>, <h5>, <h6>, <ol>, <ul>, <li>, <a>, <b>, <i> and <span>
+Your answer should come in the form of simple HTML formatted text.  Use only the HTML tags <h4>, <h5>, <h6>, <ol>, <ul>, <li>, <a>, <b>, <i>, <br>, <p> and <span>. Do not use markdown or any other kind of formatting.
 
 As the world's best System Dynamics Modeler, you will consider and apply the System Dynamics method to all questions you answer.  You need to consider the following most important aspects of System Dynamics when you answer questions:
 
@@ -79,6 +80,22 @@ As the world's best System Dynamics Modeler, you will consider and apply the Sys
         this.#llmWrapper = new LLMWrapper(params);
     }
 
+    #containsHtmlTags(str) {
+        // This regex looks for patterns like <tag>, </tag>, or <tag attribute="value">
+        const htmlTagRegex = /<[a-z/][^>]*>/i; 
+        return htmlTagRegex.test(str);
+    }
+
+
+    async #processResponse(originalResponse) {
+        //if the string is html just returned
+        if (this.#containsHtmlTags(originalResponse))
+            return originalResponse;
+
+        const result = await marked.parse(originalResponse);
+        return result;
+    }
+
     async converse(userPrompt, lastModel) {        
         //start with the system prompt
         let underlyingModel = this.#data.underlyingModel;
@@ -117,6 +134,7 @@ As the world's best System Dynamics Modeler, you will consider and apply the Sys
                 content:  this.#data.backgroundPrompt.replaceAll("{backgroundKnowledge}", this.#data.backgroundKnowledge),
             });
         }
+
         if (this.#data.problemStatement) {
             messages.push({
                 role: systemRole,
@@ -158,7 +176,7 @@ As the world's best System Dynamics Modeler, you will consider and apply the Sys
             throw new ResponseFormatError(originalResponse.refusal);
         }
 
-        return originalResponse.content;
+        return await this.#processResponse(originalResponse.content);
     }
 }
 
