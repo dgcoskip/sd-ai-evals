@@ -1,8 +1,18 @@
 import QualitativeEngineBrain from './QualitativeEngineBrain.js'
+import logger from '../../logger.js'
 
 class Engine {
     constructor() {
 
+    }
+
+    static description() {
+        return `SD-AI's original and most popular engine for generating Causal Loop Diagrams (CLDs). 
+        Works by sending Google's Gemini Flash 2.5 LLM the user's request along with a set of systems thinking process descriptions and tips.`
+    }
+
+    static link() {
+        return "https://arxiv.org/abs/2503.15580";
     }
 
     static supportedModes() {
@@ -13,7 +23,7 @@ class Engine {
         return [{
             name: "googleKey",
             type: "string",
-            required: true,
+            required: false,
             uiElement: "password",
             saveForUser: "global",
             label: "Google API Key",
@@ -40,8 +50,13 @@ class Engine {
         }];
     }
 
+    manipulateParameters(parameters) {
+        return parameters;
+    }
+    
     async generate(prompt, currentModel, parameters) {
         try {
+            parameters = this.manipulateParameters(parameters);
             let brain = new QualitativeEngineBrain(parameters);
             const response = await brain.generateDiagram(prompt, currentModel);
             const variables =  [...new Set([...response.relationships.map( e => e.from),...response.relationships.map( e => e.to )])].map((v)=> {
@@ -61,7 +76,7 @@ class Engine {
                 }
             };
         } catch(err) {
-            console.error(err);
+            logger.error(err);
             return { 
                 err: err.toString() 
             };

@@ -1,5 +1,6 @@
 import { LLMWrapper } from '../../utils.js';
 import SeldonBrain from './SeldonBrain.js'
+import logger from '../../logger.js'
 
 class Engine {
     constructor() {
@@ -14,11 +15,21 @@ class Engine {
         return ["sfd-discuss", "cld-discuss"];
     }
 
+    static description() {
+        return ` This engine is used to discuss your model with “Seldon” (aka Hari Seldon the greatest System 
+    Dynamicist who never lived), to learn about your model (AI built or human built, quantitative or qualitative). 
+    Seldon is a chatbot that isn’t capable of editing or changing your model, but instead Seldon answers questions about your model.`;    
+    }
+
+    static link() {
+        return "https://papers.ssrn.com/sol3/papers.cfm?abstract_id=5341966";
+    }
+
     additionalParameters()  {
          return [{
             name: "googleKey",
             type: "string",
-            required: true,
+            required: false,
             uiElement: "password",
             saveForUser: "global",
             label: "Google API Key",
@@ -71,7 +82,7 @@ class Engine {
                 }
             };
         } catch(err) {
-            console.error(err);
+            logger.error(err);
             return { 
                 err: err.toString() 
             };

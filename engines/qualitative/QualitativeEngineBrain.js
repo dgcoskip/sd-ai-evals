@@ -122,6 +122,7 @@ You will conduct a multistep process:
         openAIKey: null,
         googleKey: null,
         underlyingModel: LLMWrapper.DEFAULT_MODEL,
+        descriptionlessStructuredOutput: false,
         systemPrompt: QualitativeEngineBrain.DEFAULT_SYSTEM_PROMPT,
         assistantPrompt: QualitativeEngineBrain.DEFAULT_ASSISTANT_PROMPT,
         feedbackPrompt: QualitativeEngineBrain.DEFAULT_FEEDBACK_PROMPT,
@@ -146,7 +147,7 @@ You will conduct a multistep process:
        
     }
 
-    #processResponse(originalResponse) {
+    processResponse(originalResponse) {
         let origRelationships = originalResponse.relationships || [];
 
         let relationships = origRelationships.map(relationship => { 
@@ -186,12 +187,12 @@ You will conduct a multistep process:
         return originalResponse;
     }
 
-    async generateDiagram(userPrompt, lastModel) {        
+    setupLLMParameters(userPrompt, lastModel) {
         //start with the system prompt
         let underlyingModel = this.#data.underlyingModel;
         let systemRole = this.#llmWrapper.model.systemModeUser;
         let systemPrompt = this.#data.systemPrompt;
-        let responseFormat = this.#llmWrapper.generateQualitativeSDJSONResponseSchema();
+        let responseFormat = this.#llmWrapper.generateQualitativeSDJSONResponseSchema(this.#data.descriptionlessStructuredOutput);
         let temperature = 0;
         let reasoningEffort = undefined;
 
@@ -246,22 +247,29 @@ You will conduct a multistep process:
 
         //give it the user prompt
         messages.push({ role: "user", content: userPrompt });
-        messages.push({ role: "user", content: this.#data.feedbackPrompt }); //then have it try to close feedback
-        
-        //get what it thinks the relationships are with this information
-        const originalCompletion = await this.#llmWrapper.openAIAPI.chat.completions.create({
-            messages: messages,
+        if (this.#data.feedbackPrompt)
+            messages.push({ role: "user", content: this.#data.feedbackPrompt }); //then have it try to close feedback
+
+        return {
+            messages,
             model: underlyingModel,
             response_format: responseFormat,
             temperature: temperature,
             reasoning_effort: reasoningEffort
-        });
+        };
+    }
+
+    async generateDiagram(userPrompt, lastModel) {
+        const llmParams = this.setupLLMParameters(userPrompt, lastModel);
+        
+        //get what it thinks the relationships are with this information
+        const originalCompletion = await this.#llmWrapper.openAIAPI.chat.completions.create(llmParams);
 
         const originalResponse = originalCompletion.choices[0].message;
         if (originalResponse.refusal) {
             throw new ResponseFormatError(originalResponse.refusal);
         } else if (originalResponse.parsed) {
-            return this.#processResponse(originalResponse.parsed);
+            return this.processResponse(originalResponse.parsed);
         } else if (originalResponse.content) {
             let parsedObj = {relationships: []};
             try {
@@ -269,7 +277,7 @@ You will conduct a multistep process:
             } catch (err) {
                 throw new ResponseFormatError("Bad JSON returned by underlying LLM");
             }
-            return this.#processResponse(parsedObj);
+            return this.processResponse(parsedObj);
         }
     }
 }

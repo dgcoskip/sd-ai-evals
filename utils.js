@@ -37,107 +37,32 @@ utils.sameVars = function(a,b) {
     return utils.caseFold(a) === utils.caseFold(b);
 }
 
-utils.convertToXMILE = function(sdJSON) {
-  const variables = sdJSON.variables;
-  const relationships = sdJSON.relationships;
+// EVALUATION UTILITIES - These functions are specifically designed for evaluation categories
 
-  const sdJSONHasVariableDefinition = (variable) => {
-      return sdJSON.variables.findIndex((v) => {
-          return utils.sameVars(v.name, variable) && v.equation && v.equation.length > 0;
-      }) >= 0;
-  };
-
-  let xmileConnectors = "";
-  let xmileEqns = "";
-
-  let qualitativeVariablesObj = {}; //variable to causers
-  relationships.forEach((relationship) => {
-    if (!qualitativeVariablesObj[relationship.end]) {
-      qualitativeVariablesObj[relationship.end] = [];
-    }
-
-    let arr = variablesObj[relationship.end];
-    if (!arr.includes(relationship.start)) {
-      arr.push(relationship.start);
-      qualitativeVariablesObj[relationship.end] = arr;
-
-      let polarity = "";
-      if (relationship.polarity !== "?")
-        polarity =  "polarity=\"" + relationship.polarity + "\"";
-
-      xmileConnectors += "<connector " + polarity + ">";
-      xmileConnectors += "<from>" + utils.xmileName(relationship.start) + "</from>";
-      xmileConnectors += "<to>" + utils.xmileName(relationship.end) + "</to>";
-      xmileConnectors += "</connector>";
-    }
-  });
-
-  variables.forEach((variable)=> {
-    if (!(variable.equation && variable.equation.length >= 0))
-      return;
-
-    const prettyName = utils.prettyifyName(variable);
-    let type = variable.type;
-    if (type === "variable") {
-      type = "aux";
-    }
-
-    xmileEqns += "<" + type + " name=\"" + prettyName + "\">";
-    xmileEqns += "<eqn>" + variable.equation + "</eqn>";
-    if (type === "stock") {
-      variable.inflows.forEach((inflow) => {
-        xmileEqns += "<inflow>" + inflow + "</inflow>";
-      });
-      variable.outflows.forEach((inflow) => {
-        xmileEqns += "<outflow>" + inflow + "</outflow>";
-      });
-    } else if (type === "flow") {
-      xmileEqns += "<non_negative/>"
-    }
-    xmileEqns += "</" + type + ">";
-  });
-
-  for (const [variable, causers] of Object.entries(qualitativeVariablesObj)) {
-    if (sdJSONHasVariableDefinition(variable))
-      continue;
-
-    const prettyName = utils.prettyifyName(variable);
-    xmileEqns += "<aux name=\"" + prettyName + "\">";
-    xmileEqns += "<eqn>NAN(";
-    causers.forEach(function(cause, index) {
-      if (index > 0)
-        xmileEqns += ",";
-      xmileEqns += utils.xmileName(cause);
-    });
-    xmileEqns += ")</eqn>";
-    xmileEqns += "<isee:delay_aux/>";
-    xmileEqns += "</aux>";
-  }
-  
-  let value = '<?xml version="1.0" encoding="utf-8"?>';
-  value += '<xmile version="1.0" xmlns="http://docs.oasis-open.org/xmile/ns/XMILE/v1.0" xmlns:isee="http://iseesystems.com/XMILE">';
-  value += '<header>';
-  value += '<smile version="1.0" namespace="std, isee"/>';
-  value += '<vendor>AI Proxy Service</vendor>';
-  value += '<product version="1.0.0" lang="en">AI Proxy Service</product>';
-  value += '</header>';
-  value += '<model>';
-  
-  value += '<variables>';
-  value += xmileEqns;
-  value += '</variables>';
-
-  value += '<views>';
-  value += '<view type="stock_flow">';
-  value += '<style><aux><shape type="name_only"/></aux></style>';
-  value += xmileConnectors;
-  value += '</view>';
-  value += '</views>';
-  value += '</model>';
-  value += '</xmile>';
-
-  return value;
+/**
+ * Normalizes a variable name for case-insensitive and whitespace/underscore-insensitive comparison
+ * Used in evaluation categories to match variable names flexibly
+ * @param {string} name The variable name to normalize
+ * @returns {string} Normalized name (lowercase, spaces and underscores removed)
+ */
+utils.evalsNormalizeVariableName = function(name) {
+    return name.toLowerCase().replace(/[\s_-]/g, '');
 };
+
+/**
+ * Checks if a variable name matches the expected name using flexible matching
+ * Used in evaluation categories to compare generated variable names with expected names
+ * @param {string} variableName The variable name from the generated model
+ * @param {string} expectedName The expected variable name
+ * @returns {boolean} True if names match
+ */
+utils.evalsVariableNameMatches = function(variableName, expectedName) {
+    const normalizedVariable = utils.evalsNormalizeVariableName(variableName);
+    const normalizedExpected = utils.evalsNormalizeVariableName(expectedName);
+    return normalizedVariable.includes(normalizedExpected) || normalizedExpected.includes(normalizedVariable);
+};
+
+
 
 export default utils; 
 
@@ -162,7 +87,7 @@ export class ModelCapabilities {
 
       this.hasStructuredOutput = modelName !== 'o1-mini';
       this.hasSystemMode = modelName !== 'o1-mini';
-      this.hasTemperature = !modelName.startsWith('o');
+      this.hasTemperature = !modelName.startsWith('o') && !modelName.startsWith('gpt-5');
       if (modelName.includes('gemini') || modelName.includes('llama')) {
           this.systemModeUser = 'system';
       } else {
@@ -237,14 +162,16 @@ export class LLMWrapper {
   }
 
   static MODELS = [
+      {label: "GPT-5", value: 'gpt-5'},
+      {label: "GPT-5-mini", value: 'gpt-5-mini'},
+      {label: "GPT-5-nano", value: 'gpt-5-nano'},
       {label: "GPT-4o", value: 'gpt-4o'},
       {label: "GPT-4o-mini", value: 'gpt-4o-mini'},
-      //{label: "GPT-4.5-preview", value: 'gpt-4.5-preview'},
       {label: "GPT-4.1", value: 'gpt-4.1'},
       {label: "GPT-4.1-mini", value: 'gpt-4.1-mini'},
       {label: "GPT-4.1-nano", value: 'gpt-4.1-nano'},
       {label: "Gemini 2.5-flash", value: 'gemini-2.5-flash'},
-      {label: "Gemini 2.5-flash-lite", value: 'gemini-2.5-flash-lite-preview-06-17'},
+      {label: "Gemini 2.5-flash-lite", value: 'gemini-2.5-flash-lite'},
       {label: "Gemini 2.5-pro", value: 'gemini-2.5-pro'},
       {label: "Gemini 2.0", value: 'gemini-2.0-flash'},
       {label: "Gemini 2.0-Lite", value: 'gemini-2.0-flash-lite'},
@@ -253,11 +180,11 @@ export class LLMWrapper {
       {label: "o3-mini low", value: 'o3-mini low'},
       {label: "o3-mini medium", value: 'o3-mini medium'},
       {label: "o3-mini high", value: 'o3-mini high'},
-      {label: "o3", value: 'o3-mini'},
+      {label: "o3", value: 'o3'},
       {label: "o4-mini", value: 'o4-mini'}
   ];
 
-  static DEFAULT_MODEL = 'gemini-2.5-flash-preview-05-20';
+  static DEFAULT_MODEL = 'gemini-2.5-flash';
 
   static SCHEMA_STRINGS = {
     "from": "This is a variable which causes the to variable in this relationship that is between two variables, from and to.  The from variable is the equivalent of a cause.  The to variable is the equivalent of an effect",
@@ -300,21 +227,27 @@ export class LLMWrapper {
     "timeUnits": "The unit of time for this model.  This should match with the equations that you generate."
   };
 
-  generateQualitativeSDJSONResponseSchema() {
-      const PolarityEnum = z.enum(["+", "-"]).describe(LLMWrapper.SCHEMA_STRINGS.polarity);
+  generateQualitativeSDJSONResponseSchema(remove_description = false) {
+      // Conditionally adds a description to a Zod schema object.
+      // If remove_description is true, it returns the schema without the description.
+      const withDescription = (schema, description) => {
+          return remove_description ? schema : schema.describe(description);
+      };
 
-      const Relationship = z.object({
-          from: z.string().describe(LLMWrapper.SCHEMA_STRINGS.from),
-          to: z.string().describe(LLMWrapper.SCHEMA_STRINGS.to),
+      const PolarityEnum = withDescription(z.enum(["+", "-"]), LLMWrapper.SCHEMA_STRINGS.polarity);
+
+      const Relationship = withDescription(z.object({
+          from: withDescription(z.string(), LLMWrapper.SCHEMA_STRINGS.from),
+          to: withDescription(z.string(), LLMWrapper.SCHEMA_STRINGS.to),
           polarity: PolarityEnum,
-          reasoning: z.string().describe(LLMWrapper.SCHEMA_STRINGS.reasoning),
-          polarityReasoning: z.string().describe(LLMWrapper.SCHEMA_STRINGS.polarityReasoning)
-      }).describe(LLMWrapper.SCHEMA_STRINGS.relationship);
+          reasoning: withDescription(z.string(), LLMWrapper.SCHEMA_STRINGS.reasoning),
+          polarityReasoning: withDescription(z.string(), LLMWrapper.SCHEMA_STRINGS.polarityReasoning)
+      }), LLMWrapper.SCHEMA_STRINGS.relationship);
           
       const Relationships = z.object({
-          explanation: z.string().describe(LLMWrapper.SCHEMA_STRINGS.explanation),
-          title: z.string().describe(LLMWrapper.SCHEMA_STRINGS.title),
-          relationships: z.array(Relationship).describe(LLMWrapper.SCHEMA_STRINGS.relationships)
+          explanation: withDescription(z.string(), LLMWrapper.SCHEMA_STRINGS.explanation),
+          title: withDescription(z.string(), LLMWrapper.SCHEMA_STRINGS.title),
+          relationships: withDescription(z.array(Relationship), LLMWrapper.SCHEMA_STRINGS.relationships)
       });
 
       return zodResponseFormat(Relationships, "relationships_response");

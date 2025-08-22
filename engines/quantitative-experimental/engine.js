@@ -30,6 +30,12 @@ It ensures the AI’s responses align with the intended user experience, such as
         return ["sfd"];
     }
 
+    static description() {
+        return `Exactly the same as the Quantitative engine, but with ability to customize all system prompts, 
+select underlying LLM service and bring your own API key. This engine is designed for the tinkerer who wants 
+to experiment with the specific prompts passed to the LLM.`;
+    }
+
     additionalParameters()  {
         let parameters = LLMWrapper.additionalParameters();
 
@@ -100,7 +106,7 @@ It ensures the AI’s responses align with the intended user experience, such as
                 uiElement: "textarea",
                 saveForUser: "local",
                 label: "Background Knowledge",
-                description: "Background information you want the OpenAI model to consider when generating a diagram for you",
+                description: "Background information you want the underlying model to consider when generating a diagram for you",
                 minHeight: 100
             }
         ]);
