@@ -205,16 +205,7 @@ export const evaluate = function (generatedResponse, groundTruth) {
 };
 
 export const groups = {
-  suicide: parseRelationships(
-    "./evals/categories/data/suicide_subgraphs.csv"
-  ).slice(0, 3),
-  lake: parseRelationships(
-    "./evals/categories/data/virginia_tech_subgraphs.csv"
-  ).slice(0, 3),
-  sd: parseRelationships(
+  publishedVignettes: parseRelationships(
     "./evals/categories/data/published_vignettes_subgraphs.csv"
-  ).slice(0, 3),
-  student: parseRelationships(
-    "./evals/categories/data/student_subgraphs.csv"
-  ).slice(0, 3),
+  )
 };
