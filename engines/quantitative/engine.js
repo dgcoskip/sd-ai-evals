@@ -1,5 +1,6 @@
 import { LLMWrapper } from '../../utils.js';
 import QuantitativeEngineBrain from './QuantitativeEngineBrain.js'
+import logger from '../../logger.js'
 
 class Engine {
     constructor() {
@@ -10,11 +11,20 @@ class Engine {
         return ["sfd"];
     }
 
+    static description() {
+        return `SD-AI's original and most popular engine for generating simulating Stock Flow Diagrams (SFDs). 
+Works by sending Google's Gemini Flash 2.5 LLM the user's request along with a set of systems thinking process descriptions and tips.`
+    }
+
+    static link() {
+        return "https://papers.ssrn.com/sol3/papers.cfm?abstract_id=5341966";
+    }
+
     additionalParameters()  {
         return [{
             name: "googleKey",
             type: "string",
-            required: true,
+            required: false,
             uiElement: "password",
             saveForUser: "global",
             label: "Google API Key",
@@ -59,7 +69,7 @@ class Engine {
                 returnValue.model.specs = response.specs;
             return returnValue;
         } catch(err) {
-            console.error(err);
+            logger.error(err);
             return { 
                 err: err.toString() 
             };

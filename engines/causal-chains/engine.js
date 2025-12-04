@@ -1,10 +1,14 @@
-import * as fs from 'fs';
-import {execSync} from "child_process"
-import path from 'path';
-import {tmpdir} from 'os';
+import { promises as fs, statSync } from 'node:fs';
+import {exec} from "child_process"
+import path from 'node:path';
+import {tmpdir} from 'node:os';
 import {fileURLToPath} from 'url';
+import util from 'node:util';
+
+const promiseExec = util.promisify(exec);
 
 import {LLMWrapper} from "../../utils.js";
+import logger from "../../logger.js";
 
 const __filename = fileURLToPath(import.meta.url); // get the resolved path to the file
 const __dirname = path.dirname(__filename); // get the name of the directory
@@ -15,16 +19,23 @@ class Engine {
 
     static DEFAULT_MODEL = 'o4-mini';
 
+    static description() {
+        return `This engine improves conformance to user instructions about feedback complexity by prompting the LLM to 
+focus on chains of relationships, rather then individual links.`
+    }
+
     static supportedModes() {
         // check that the ./causal-chains Go binary exists
         try {
-            const stats = fs.statSync(`${__dirname}/causal-chains`);
+            const stats =  statSync(`${__dirname}/causal-chains`);
             const isExecutable = !!(stats.mode & (fs.constants.S_IXUSR | fs.constants.S_IXGRP | fs.constants.S_IXOTH));
 
             if (isExecutable) {
                 return ["cld"];
             }
         } catch (err) {
+            logger.log("Error checking supporting modes on causal-chains...");
+            logger.log(err);
             // fine to fallthrough to the return below
         }
 
@@ -101,22 +112,27 @@ class Engine {
 
         let tempDir;
         try {
-            tempDir = fs.mkdtempSync(path.join(tmpdir(), 'sd-ai-causal-chains-'));
+            tempDir = await fs.mkdtemp(path.join(tmpdir(), 'sd-ai-causal-chains-'));
             // get the absolute path to this temp file
             const inputPath = path.resolve(path.join(tempDir, 'data.json'));
-            // console.log(`input path is ${inputPath}`);
-            fs.writeFileSync(inputPath, JSON.stringify(input));
-            const result = execSync(`${__dirname}/causal-chains ${inputPath}`, {cwd: tempDir});
-
-            return JSON.parse(result.toString());
+            // logger.log(`input path is ${inputPath}`);
+            await fs.writeFile(inputPath, JSON.stringify(input));
+            const { stdout, stderr } = await promiseExec(`${__dirname}/causal-chains ${inputPath}`, {cwd: tempDir});
+            return JSON.parse(stdout.toString());
         } catch (err) {
-            console.log(`causal-chains returned non-zero exit code: ${err.status}`);
-            return {
-                err: err.stderr.toString(),
-            };
+            logger.log(`causal-chains returned non-zero exit code: ${err.status}`);
+            if (err.stderr) {
+                return {
+                 err: err.stderr.toString(),
+                };
+            } else {
+                return {
+                    err: err.toString()
+                };
+            }
         } finally {
             if (tempDir) {
-                fs.rmSync(tempDir, {recursive: true, force: true});
+                await fs.rm(tempDir, {recursive: true, force: true});
             }
         }
     }

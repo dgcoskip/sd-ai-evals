@@ -31,6 +31,12 @@ It ensures the AI’s responses align with the intended user experience, such as
         return ["sfd-discuss", "cld-discuss"];
     }
 
+    static description() {
+        return `Exactly the same as the Seldon engine, but with ability to customize all system prompts, 
+select underlying LLM service and bring your own API key. This engine is designed for the tinkerer who 
+wants to experiment with the specific prompts passed to the LLM.`;
+    }
+
     additionalParameters()  {
         const additionalParameters = LLMWrapper.additionalParameters();
         return additionalParameters.concat([{
@@ -141,7 +147,7 @@ It ensures the AI’s responses align with the intended user experience, such as
                 }
             };
         } catch(err) {
-            console.error(err);
+            logger.error(err);
             return { 
                 err: err.toString() 
             };

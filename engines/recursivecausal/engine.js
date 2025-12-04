@@ -1,5 +1,6 @@
 import QualitativeEngineBrain from '../qualitative/QualitativeEngineBrain.js';
 import { LLMWrapper } from '../../utils.js';
+import logger from '../../logger.js';
 
 const RECURSIVE_SYSTEM_PROMPT = `You are a System Dynamics Assistant. Users will give you a topic, text and optionally some extra information to take into consideration. It is your job to generate causal relationships from that text while following other user specifications.
         
@@ -17,6 +18,13 @@ You must keep in mind the following:
 
 
 class RecursiveCausalEngine {
+  static description() {
+    return `
+    An engine inspired by Philippe Giabbanelli’s paper, Generative AI for Systems Thinking: 
+Can a GPT Question-Answering System Turn Text into the Causal Maps Produced by Human Readers? 
+It uses the "Brain" from the qualitative engine in a recursive fashion making this engine slower.` 
+  }
+
   static supportedModes() {
     return ["cld"];
   }
@@ -95,7 +103,7 @@ class RecursiveCausalEngine {
         if (Array.isArray(result.relationships) && result.relationships.length > 0) {
           mainTopics = result.relationships.map(r => r.from.toLowerCase());
         } else {
-          console.error("Failed to infer any main topics");
+          logger.error("Failed to infer any main topics");
           return { err: "Failed to infer any main topics" };
         }
       }
@@ -159,7 +167,7 @@ class RecursiveCausalEngine {
         }
       };
     } catch (err) {
-      console.error(err);
+      logger.error(err);
       return { err: err.toString() };
     }
   }
