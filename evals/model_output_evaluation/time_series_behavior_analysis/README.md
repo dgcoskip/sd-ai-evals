@@ -182,7 +182,5 @@ Example use cases:
 ## Testing
 
 ```bash
-python -m pytest time_series_behavior_analysis -v
-```
-
+python -m pytest test_time_series_behavior_analysis.py -v ```
 81 tests covering all models, edge cases, and direction detection.

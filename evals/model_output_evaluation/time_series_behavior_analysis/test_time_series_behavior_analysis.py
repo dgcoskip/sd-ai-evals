@@ -834,6 +834,23 @@ class TestMonotonicityAndCorrelation:
         # Constant series has undefined correlation (we return 0)
         assert scale["correlation_with_time"] == 0.0
 
+class TestCSVExamples:
+
+    def test_weather_data(self):
+        weather_data = np.genfromtxt('test_data/seasonal_weather.csv', delimiter=',', skip_header=1, usecols=(1))
+        weather_classification = classify_timeseries_shape_and_scale(weather_data)
+        assert weather_classification["shape"]["base_shape"] == "oscillating"
+
+    def test_sales_data(self):
+        sales_data = np.genfromtxt("test_data/sales.csv", delimiter=',', skip_header=1, usecols=(1))
+        sales_classification = classify_timeseries_shape_and_scale(sales_data)
+        assert sales_classification["shape"]["base_shape"] == "accelerating"
+
+    def test_births_data(self):
+        births_data = np.genfromtxt("test_data/births.csv", delimiter=',', skip_header=1, usecols=(1))
+        births_classification = classify_timeseries_shape_and_scale(births_data)
+        assert births_classification["shape"]["base_shape"] == "bump" 
+
 
 if __name__ == "__main__":
     pytest.main([__file__, "-v"])
