@@ -14,6 +14,7 @@ import path from 'path';
 import { fileURLToPath } from 'url';
 import { LLMWrapper } from '../../utilities/LLMWrapper.js';
 import { z } from 'zod';
+import { validateEvaluationResult } from '../evaluationSchema.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -78,7 +79,7 @@ export const evaluate = async function(generatedResponse, expectations) {
             type: "Missing explanation",
             details: "The response does not contain any text explaining the errors"
         });
-        return failures;
+        return validateEvaluationResult(failures);
     }
 
     try {
@@ -145,7 +146,7 @@ export const evaluate = async function(generatedResponse, expectations) {
         });
     }
 
-    return failures;
+    return validateEvaluationResult(failures);
 };
 
 export const groups = {

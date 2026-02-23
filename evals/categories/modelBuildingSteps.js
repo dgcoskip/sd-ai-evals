@@ -11,6 +11,7 @@
 
 import { LLMWrapper } from '../../utilities/LLMWrapper.js';
 import { z } from 'zod';
+import { validateEvaluationResult } from '../evaluationSchema.js';
 
 // Test data: Each contains a problem statement, background knowledge, and ground truth steps
 const armsRaceProblem = {
@@ -166,7 +167,7 @@ export const evaluate = async function(generatedResponse, expectations) {
         });
     }
 
-    return failures;
+    return validateEvaluationResult(failures);
 };
 
 /**

@@ -11,6 +11,7 @@ involving fixed, proportional, and interdependent flows.`;
 import pluralize from 'pluralize';
 import numberToWords from 'number-to-words';
 import utils from '../../utilities/utils.js';
+import { validateEvaluationResult } from '../evaluationSchema.js';
 
 //generic prompt and problem statement used for all tests
 const prompt = "Please give me a model which includes all causal relationships in the background information.";
@@ -182,30 +183,22 @@ export const evaluate = function(generatedResponse, groundTruth) {
         return 0;
     };
 
-    const stockEqualityGTComparatorGenerator = function(groundTruth) {
-        return (ai) => {
-            return compareNames(ai.name, groundTruth.name);
-        };
-    };
-
-    const stockEqualityAIComparatorGenerator = function(ai) {
-        return (groundTruth) => {
-            return compareNames(ai.name, groundTruth.name);
-        };
+    const stockNameMatches = function(a, b) {
+        return compareNames(a.name, b.name);
     };
 
     const failures = []; //type, details
     const stocks = extractStocks(generatedModel); //get all the stocks
 
-    const sortedAIStocks = stocks.sort(comparator); //sort for comparison purposes by name
-    const sortedTruthStocks = groundTruthStocks.sort(comparator);
+    const sortedAIStocks = [...stocks].sort(comparator); //sort for comparison purposes by name
+    const sortedTruthStocks = [...groundTruthStocks].sort(comparator);
 
-    const removed = sortedTruthStocks.filter((element) => { return !sortedAIStocks.some(stockEqualityGTComparatorGenerator(element))});
-    const added = sortedAIStocks.filter((element) => { return !sortedTruthStocks.some(stockEqualityAIComparatorGenerator(element))});
+    const removed = sortedTruthStocks.filter((element) => { return !sortedAIStocks.some((aiStock) => stockNameMatches(aiStock, element))});
+    const added = sortedAIStocks.filter((element) => { return !sortedTruthStocks.some((gtStock) => stockNameMatches(element, gtStock))});
 
-    const addedStr = added.map((r)=>{return r.name}).join(", ");
-    const removedStr = removed.map((r)=>{return r.name}).join(", ");
-    const groundTruthStr = sortedTruthStocks.map((r)=>{return r.name}).join(", ");
+    const addedStr = added.map((stock) => { return stock.name }).join(", ");
+    const removedStr = removed.map((stock) => { return stock.name }).join(", ");
+    const groundTruthStr = sortedTruthStocks.map((stock) => { return stock.name }).join(", ");
 
     if (!generatedModel.specs?.timeUnits || !compareNames(generatedModel.specs.timeUnits, groundTruth.timeUnit)) {
         failures.push({
@@ -229,7 +222,7 @@ export const evaluate = function(generatedResponse, groundTruth) {
     }
 
     for (const groundTruthStock of sortedTruthStocks) {
-        let aiStock = sortedAIStocks.find(stockEqualityGTComparatorGenerator(groundTruthStock));
+        let aiStock = sortedAIStocks.find((aiStock) => stockNameMatches(aiStock, groundTruthStock));
         if (!aiStock)
             continue; //some error in the test itself
 
@@ -279,7 +272,7 @@ export const evaluate = function(generatedResponse, groundTruth) {
         }
     }
 
-    return failures 
+    return validateEvaluationResult(failures);
 };
 
 export const groups = {
