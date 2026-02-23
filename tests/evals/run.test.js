@@ -12,31 +12,31 @@ describe('Run Helpers', () => {
   describe('applyDefaultLimits', () => {
     it('should apply all defaults when limits is missing', () => {
       const engineConfig = {};
-      applyDefaultLimits(engineConfig);
+      const result = applyDefaultLimits(engineConfig);
 
-      expect(engineConfig.limits.tokensPerMinute).toBe(30000);
-      expect(engineConfig.limits.requestsPerMinute).toBe(400);
-      expect(engineConfig.limits.baselineTokenUsage).toBe(3000);
+      expect(result.limits.tokensPerMinute).toBe(30000);
+      expect(result.limits.requestsPerMinute).toBe(400);
+      expect(result.limits.baselineTokenUsage).toBe(3000);
     });
 
     it('should apply all defaults when limits object exists but is empty', () => {
       const engineConfig = { limits: {} };
-      applyDefaultLimits(engineConfig);
+      const result = applyDefaultLimits(engineConfig);
 
-      expect(engineConfig.limits.tokensPerMinute).toBe(30000);
-      expect(engineConfig.limits.requestsPerMinute).toBe(400);
-      expect(engineConfig.limits.baselineTokenUsage).toBe(3000);
+      expect(result.limits.tokensPerMinute).toBe(30000);
+      expect(result.limits.requestsPerMinute).toBe(400);
+      expect(result.limits.baselineTokenUsage).toBe(3000);
     });
 
     it('should preserve specified values and fill in missing defaults', () => {
       const engineConfig = {
         limits: { tokensPerMinute: 50000 },
       };
-      applyDefaultLimits(engineConfig);
+      const result = applyDefaultLimits(engineConfig);
 
-      expect(engineConfig.limits.tokensPerMinute).toBe(50000);
-      expect(engineConfig.limits.requestsPerMinute).toBe(400);
-      expect(engineConfig.limits.baselineTokenUsage).toBe(3000);
+      expect(result.limits.tokensPerMinute).toBe(50000);
+      expect(result.limits.requestsPerMinute).toBe(400);
+      expect(result.limits.baselineTokenUsage).toBe(3000);
     });
 
     it('should not overwrite any specified limits', () => {
@@ -47,11 +47,35 @@ describe('Run Helpers', () => {
           baselineTokenUsage: 5000,
         },
       };
+      const result = applyDefaultLimits(engineConfig);
+
+      expect(result.limits.tokensPerMinute).toBe(25000);
+      expect(result.limits.requestsPerMinute).toBe(200);
+      expect(result.limits.baselineTokenUsage).toBe(5000);
+    });
+
+    it('should preserve non-limits properties on the config', () => {
+      const engineConfig = {
+        engine: 'myEngine',
+        additionalParameters: { temperature: 0.5 },
+      };
+      const result = applyDefaultLimits(engineConfig);
+
+      expect(result.engine).toBe('myEngine');
+      expect(result.additionalParameters).toEqual({ temperature: 0.5 });
+      expect(result.limits.tokensPerMinute).toBe(30000);
+    });
+
+    it('should not mutate the input engineConfig', () => {
+      const engineConfig = {
+        engine: 'myEngine',
+        limits: { tokensPerMinute: 50000 },
+      };
+      const snapshot = structuredClone(engineConfig);
+
       applyDefaultLimits(engineConfig);
 
-      expect(engineConfig.limits.tokensPerMinute).toBe(25000);
-      expect(engineConfig.limits.requestsPerMinute).toBe(200);
-      expect(engineConfig.limits.baselineTokenUsage).toBe(5000);
+      expect(engineConfig).toEqual(snapshot);
     });
   });
 

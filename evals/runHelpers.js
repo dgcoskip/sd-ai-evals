@@ -3,13 +3,13 @@ const TOKENS_PER_MINUTE = 30_000;
 const REQUESTS_PER_MINUTE = 400;
 
 function applyDefaultLimits(engineConfig) {
-  engineConfig.limits = engineConfig.limits || {};
-  engineConfig.limits.tokensPerMinute =
-    engineConfig.limits.tokensPerMinute || TOKENS_PER_MINUTE;
-  engineConfig.limits.requestsPerMinute =
-    engineConfig.limits.requestsPerMinute || REQUESTS_PER_MINUTE;
-  engineConfig.limits.baselineTokenUsage =
-    engineConfig.limits.baselineTokenUsage || BASELINE_TOKEN_USAGE;
+  const limits = {
+    tokensPerMinute: TOKENS_PER_MINUTE,
+    requestsPerMinute: REQUESTS_PER_MINUTE,
+    baselineTokenUsage: BASELINE_TOKEN_USAGE,
+    ...engineConfig.limits,
+  };
+  return { ...engineConfig, limits };
 }
 
 function loadCategoryTests(groups, filter) {

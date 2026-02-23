@@ -96,8 +96,8 @@ if (isContinuing) {
 const tests = Object.fromEntries(
   (await Promise.all(
     Object.entries(experiment.engineConfigs)
-      .map(async ([engineConfigName, engineConfig]) => {
-        applyDefaultLimits(engineConfig);
+      .map(async ([engineConfigName, rawEngineConfig]) => {
+        const engineConfig = applyDefaultLimits(rawEngineConfig);
 
         const allTests = Object.fromEntries(
           await Promise.all(
