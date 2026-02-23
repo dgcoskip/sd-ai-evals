@@ -157,13 +157,13 @@ describe('EvaluationResult Schema', () => {
       expect(() => validateEvaluationResult(input)).toThrow();
     });
 
-    it('should reject object with empty string type (but non-empty string is valid)', () => {
+    it('should accept object with empty string type (empty strings are valid)', () => {
       const input = [{ type: '', details: 'something' }];
       const result = validateEvaluationResult(input);
       expect(result).toEqual(input);
     });
 
-    it('should reject object with empty string details (but empty string is valid)', () => {
+    it('should accept object with empty string details (empty strings are valid)', () => {
       const input = [{ type: 'Error', details: '' }];
       const result = validateEvaluationResult(input);
       expect(result).toEqual(input);
