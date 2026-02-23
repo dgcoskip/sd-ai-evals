@@ -4,7 +4,7 @@
         ],
         "feedbackLoops": [
         ],
-        "valid": false
+        "valid": true
     },
     "model": {
         "errors": [

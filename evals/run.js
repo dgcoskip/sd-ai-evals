@@ -123,6 +123,7 @@ if (isContinuing) {
 }
 console.log("Sequential: " + (experiment.sequential || "false"));
 console.log("Verbose: " + experiment.verbose);
+console.log("Break on Error: " + experiment.breakOnError || "false");
 console.log();
 
 console.log(chalk.blue("Engine Configurations:"));
@@ -223,6 +224,7 @@ const runEngineTests = async ([engineConfigName, engineTests]) => {
 
   const inProgress = new Set();
   const earlyResults = { true: 0, false: 0 };
+  const errorTracker = { lastError: null, retryCount: 0, errorHistory: [] }; // Track last error, retry count, and all errors
   const engineBar = progress.create(engineTests.length, 0, {
     engineConfigName,
     earlyResults: printEarlyResults(earlyResults),
@@ -241,7 +243,8 @@ const runEngineTests = async ([engineConfigName, engineTests]) => {
         tokenLimiter,
         inProgress,
         earlyResults,
-        engineBar
+        engineBar,
+        errorTracker
       );
 
       return [...acc, result];
@@ -255,7 +258,8 @@ const runEngineTests = async ([engineConfigName, engineTests]) => {
           tokenLimiter,
           inProgress,
           earlyResults,
-          engineBar
+          engineBar,
+          errorTracker
         )
       )
     );
@@ -274,7 +278,8 @@ const runSingleTest = async (
   tokenLimiter,
   inProgress,
   earlyResults,
-  engineBar
+  engineBar,
+  errorTracker
 ) => {
   const name = test.testParams["name"];
   const cachedResult = previousResults.find(r => {
@@ -340,6 +345,82 @@ const runSingleTest = async (
       test.testParams["currentModel"],
       additionalParameters
     );
+
+    // Check for errors in the response
+    if (experiment.breakOnError && generateResponse && generateResponse.err) {
+      const currentErrorStr = JSON.stringify(generateResponse.err);
+
+      // Increment retry count and add error to history
+      errorTracker.retryCount++;
+      errorTracker.errorHistory.push({
+        attempt: errorTracker.retryCount,
+        error: generateResponse.err,
+        errorStr: currentErrorStr
+      });
+
+      // Check if this is the same error as the last one (two in a row)
+      if (errorTracker.lastError === currentErrorStr) {
+        // Same error occurred twice in a row - exit immediately
+        progress.stop();
+        console.clear();
+        console.error(chalk.red(chalk.bold("\n\nERROR: Same error occurred twice in a row")));
+        console.error(chalk.red(`Test name: ${name}`));
+        console.error(chalk.red(`Engine: ${test.engineConfig.engine}`));
+        console.error(chalk.red(`\nAll errors encountered:`));
+
+        // Print all errors from history
+        errorTracker.errorHistory.forEach((entry) => {
+          console.error(chalk.red(`\nAttempt ${entry.attempt}:`));
+          console.error(entry.error);
+        });
+
+        process.exit(1);
+      }
+
+      // Check if we've hit the maximum retry limit (3 retries)
+      if (errorTracker.retryCount >= 3) {
+        progress.stop();
+        console.clear();
+        console.error(chalk.red(chalk.bold("\n\nERROR: Maximum retry limit (3) reached")));
+        console.error(chalk.red(`Test name: ${name}`));
+        console.error(chalk.red(`Engine: ${test.engineConfig.engine}`));
+        console.error(chalk.red(`\nAll errors encountered:`));
+
+        // Print all errors from history
+        errorTracker.errorHistory.forEach((entry) => {
+          console.error(chalk.red(`\nAttempt ${entry.attempt}:`));
+          console.error(entry.error);
+        });
+
+        process.exit(1);
+      }
+
+      // Different error - store it and retry
+      errorTracker.lastError = currentErrorStr;
+      if (experiment.verbose > 0) {
+        console.log(chalk.yellow(`\nWarning: Error occurred for test "${name}" (retry ${errorTracker.retryCount}/3), retrying...`));
+        console.log(chalk.yellow(`Error: ${currentErrorStr}`));
+      }
+
+      // Wait a bit before retrying
+      await new Promise(resolve => setTimeout(resolve, 2000));
+
+      // Retry the same test recursively
+      return runSingleTest(
+        test,
+        requestLimiter,
+        tokenLimiter,
+        inProgress,
+        earlyResults,
+        engineBar,
+        errorTracker
+      );
+    }
+
+    // Success - clear error tracker
+    errorTracker.lastError = null;
+    errorTracker.retryCount = 0;
+    errorTracker.errorHistory = [];
 
     testWithResult = structuredClone(test);
     testWithResult["duration"] = Date.now() - startTime;

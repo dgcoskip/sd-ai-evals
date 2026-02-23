@@ -79,9 +79,9 @@ export const evaluate = async function(generatedResponse, expectations) {
     const failures = [];
     const expectedFacts = expectations;
 
-    // Create LLMWrapper instance configured for gemini-2.5-flash
+    // Create LLMWrapper instance configured for evaluation purposes
     const llm = new LLMWrapper({
-        underlyingModel: 'gemini-2.5-flash'
+        underlyingModel: LLMWrapper.EVAL_MODEL
     });
 
     // Iterate through each expected fact
@@ -196,7 +196,7 @@ export const groups = {
                 "System behavior is governed by predator–prey feedback. The oscillations are driven mainly by the reinforcing loop R1 and the balancing loops B1 and B2, which together create classic predator–prey cycles.",
                 "Growth and collapse phases alternate across the timeline. Periods dominated by R1 (e.g., 1810–1818, 1881–1893, 1957–1964) trigger rapid deer population growth, which are then followed by crashes or stabilization when B1 and B2 take over.",
                 "U1 briefly dominates during transitions (e.g., 1830–1834, 1865–1869, 1906–1909, 1941–1944), marking rapid predator adjustments that reset the system before returning to balancing control.",
-                "After 1972, balancing loops dominate continuously, and from 1980 to 2300, B1 and B2 maintain control, indicating a damped oscillatory regime with stable predator–prey dynamics."
+                "After 1972, balancing loops dominate continuously, and from 1980 to 2300, B1 and B2 maintain control."
             ]
         )
     ]

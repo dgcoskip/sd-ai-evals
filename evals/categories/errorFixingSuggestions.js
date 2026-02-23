@@ -66,13 +66,13 @@ export const evaluate = async function(generatedResponse, expectations) {
     const failures = [];
     const expectedErrors = expectations;
 
-    // Create LLMWrapper instance configured for gemini-2.5-flash
+    // Create LLMWrapper instance configured for evaluation purposes
     const llm = new LLMWrapper({
-        underlyingModel: 'gemini-2.5-flash'
+        underlyingModel: LLMWrapper.EVAL_MODEL
     });
 
     // Extract the text content from the generated response
-    const generatedText = generatedResponse.output.textContent || JSON.stringify(generatedResponse);
+    const generatedText = generatedResponse.output?.textContent || JSON.stringify(generatedResponse);
 
     if (!generatedText) {
         failures.push({

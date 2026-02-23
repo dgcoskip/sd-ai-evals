@@ -95,9 +95,9 @@ const checkErrorExplanations = async function(explanation, errorExplanations) {
         return failures;
     }
 
-    // Create LLMWrapper instance configured for gemini-2.5-flash
+    // Create LLMWrapper instance configured for evaluation purposes
     const llm = new LLMWrapper({
-        underlyingModel: 'gemini-2.5-flash'
+        underlyingModel: LLMWrapper.EVAL_MODEL
     });
 
     try {
