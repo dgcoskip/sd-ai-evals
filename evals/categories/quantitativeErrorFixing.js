@@ -14,6 +14,7 @@ import { fileURLToPath } from 'url';
 import utils from '../../utilities/utils.js';
 import { LLMWrapper } from '../../utilities/LLMWrapper.js';
 import { z } from 'zod';
+import { validateEvaluationResult } from '../evaluationSchema.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -181,7 +182,7 @@ export const evaluate = async function(generatedResponse, groundTruth) {
             type: "Model structure missing",
             details: "The generated response does not contain a valid model structure with variables"
         });
-        return failures;
+        return validateEvaluationResult(failures);
     }
 
     const generatedVars = generatedModel.variables || [];
@@ -265,7 +266,7 @@ export const evaluate = async function(generatedResponse, groundTruth) {
         failures.push(...explanationFailures);
     }
 
-    return failures;
+    return validateEvaluationResult(failures);
 };
 
 export const groups = {
