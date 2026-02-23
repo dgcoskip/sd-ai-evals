@@ -17,6 +17,14 @@ import yargs from "yargs";
 import { hideBin } from "yargs/helpers";
 
 import { printTable, pivotAndUnstack, uniqueFileId } from "./helpers.js";
+import {
+  BASELINE_TOKEN_USAGE,
+  TOKENS_PER_MINUTE,
+  REQUESTS_PER_MINUTE,
+  applyDefaultLimits,
+  loadCategoryTests,
+  loadTestsForEngine,
+} from "./runHelpers.js";
 
 import "dotenv/config";
 
@@ -83,76 +91,29 @@ if (isContinuing) {
 }
 
 
-// See commentary in readme about rate limiting
-// 3k was max total tokens used by causual translation on a standard non-reasoning openai model at teir 1
-const BASELINE_TOKEN_USAGE = 3000;
-const TOKENS_PER_MINUTE = 30_000;
-// openai typically allows 500 requests per minute, so 400 is safe bet
-const REQUESTS_PER_MINUTE = 400;
-
 // goal of tests is to create a pretty flat denormaized structure
 // but all keyed on engine name so that we can easily rate limit by engine
 const tests = Object.fromEntries(
-    (await Promise.all(
+  (await Promise.all(
     Object.entries(experiment.engineConfigs)
       .map(async ([engineConfigName, engineConfig]) => {
-        // return all the map of all tests in a group if filter is true
-        // return only the tests in the groups specified by filter if list is provided
-        // return nothing if criteria isn't mentioned
-
-        engineConfig.limits = engineConfig.limits || {};
-        engineConfig.limits.tokensPerMinute =
-          engineConfig.limits.tokensPerMinute || TOKENS_PER_MINUTE;
-        engineConfig.limits.requestsPerMinute =
-          engineConfig.limits.requestsPerMinute || REQUESTS_PER_MINUTE;
-        engineConfig.limits.baselineTokenUsage =
-          engineConfig.limits.baselineTokenUsage || BASELINE_TOKEN_USAGE;
+        applyDefaultLimits(engineConfig);
 
         const allTests = Object.fromEntries(
           await Promise.all(
-            Object.entries(experiment.categories).map(async ([c, filter]) => {
-              const { groups } = await import(`./categories/${c}.js`);
-              if (filter === true) return [c, groups];
-              if (filter === false) return [c, []];
-              return [
-                c,
-                Object.fromEntries(
-                  Object.entries(groups).filter(([groupName, _]) => {
-                    // only include groups that are specified
-                    return filter.indexOf(groupName) > -1;
-                  })
-                ),
-              ];
+            Object.entries(experiment.categories).map(async ([categoryName, filter]) => {
+              const { groups } = await import(`./categories/${categoryName}.js`);
+              return [categoryName, loadCategoryTests(groups, filter)];
             })
           )
         );
 
         const engine = await import(`./../engines/${engineConfig.engine}/engine.js`);
 
-        // jam the details of the engine and the category and group into the test itself
-        const fullTests = Object.entries(allTests).map(([category, groups]) => {
-          return Object.entries(groups).map(([groupName, tests]) => {
-            return tests.map((test) => {
-              const testObj = {};
-              // also have a look at additionalParameters parsing when we run
-              // the engine, changes here might require changes there too
-              testObj["engineConfig"] = engineConfig;
-              testObj["engineConfigName"] = engineConfigName;
-              testObj["category"] = category;
-              testObj["group"] = groupName;
-              testObj["testParams"] = test;
-              return testObj;
-            });
-          });
-        });
-
-        return [engineConfigName, fullTests.flat(2)];
-      }
-    )
+        return [engineConfigName, loadTestsForEngine(allTests, engineConfig, engineConfigName)];
+      })
   ))
-  .filter(entry => {
-    return entry[0] !== undefined;
-  })
+  .filter(entry => entry[0] !== undefined)
 );
 
 console.log(chalk.blue("Experiment Configuration:"));
