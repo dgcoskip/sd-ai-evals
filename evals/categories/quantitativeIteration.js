@@ -11,6 +11,7 @@ involving fixed, proportional, and interdependent flows.`;
 import pluralize from 'pluralize';
 import numberToWords from 'number-to-words';
 import utils from '../../utilities/utils.js';
+import { validateEvaluationResult } from '../evaluationSchema.js';
 
 //generic prompt and problem statement used for all tests
 const prompt = "Please add the following to my model...";
@@ -186,43 +187,33 @@ export const evaluate = function(generatedResponse, groundTruth) {
         return 0;
     };
 
-    const stockEqualityGTComparatorGenerator = function(groundTruth) {
-        return (ai) => {
-            return compareNames(ai.name, groundTruth.name);
-        };
-    };
-
-    const stockEqualityAIComparatorGenerator = function(ai) {
-        return (groundTruth) => {
-            return compareNames(ai.name, groundTruth.name);
-        };
+    const stockNameMatches = function(a, b) {
+        return compareNames(a.name, b.name);
     };
 
     const failures = []; //type, details
     const stocks = extractStocks(generatedModel); //get all the stocks
 
-    const sortedAIStocks = stocks.sort(comparator); //sort for comparison purposes by name
-    const sortedTruthStocks = groundTruthStocks.sort(comparator);
-    const sortedCurrentModelStocks = currentModelStocks.sort(comparator);
+    const sortedAIStocks = [...stocks].sort(comparator);
+    const sortedTruthStocks = [...groundTruthStocks].sort(comparator);
+    const sortedCurrentModelStocks = [...currentModelStocks].sort(comparator);
 
-    const removed = sortedTruthStocks.filter((element) => { return !sortedAIStocks.some(stockEqualityGTComparatorGenerator(element))});
+    const removed = sortedTruthStocks.filter((element) => { return !sortedAIStocks.some((aiStock) => stockNameMatches(aiStock, element))});
 
-    // Filter out currentModel stocks from "added" check - they are legitimate pre-existing stocks
     const added = sortedAIStocks.filter((element) => {
-        const isNotInGroundTruth = !sortedTruthStocks.some(stockEqualityAIComparatorGenerator(element));
-        const isNotInCurrentModel = !sortedCurrentModelStocks.some(stockEqualityAIComparatorGenerator(element));
+        const isNotInGroundTruth = !sortedTruthStocks.some((gtStock) => stockNameMatches(element, gtStock));
+        const isNotInCurrentModel = !sortedCurrentModelStocks.some((cmStock) => stockNameMatches(element, cmStock));
         return isNotInGroundTruth && isNotInCurrentModel;
     });
 
-    // Check if pre-existing model structure is preserved
     const missingCurrentModelStocks = sortedCurrentModelStocks.filter((element) => {
-        return !sortedAIStocks.some(stockEqualityGTComparatorGenerator(element));
+        return !sortedAIStocks.some((aiStock) => stockNameMatches(aiStock, element));
     });
 
-    const addedStr = added.map((r)=>{return r.name}).join(", ");
-    const removedStr = removed.map((r)=>{return r.name}).join(", ");
-    const groundTruthStr = sortedTruthStocks.map((r)=>{return r.name}).join(", ");
-    const missingCurrentModelStr = missingCurrentModelStocks.map((r)=>{return r.name}).join(", ");
+    const addedStr = added.map((stock) => { return stock.name }).join(", ");
+    const removedStr = removed.map((stock) => { return stock.name }).join(", ");
+    const groundTruthStr = sortedTruthStocks.map((stock) => { return stock.name }).join(", ");
+    const missingCurrentModelStr = missingCurrentModelStocks.map((stock) => { return stock.name }).join(", ");
 
     // Check that pre-existing model structure is preserved
     if (missingCurrentModelStocks.length > 0) {
@@ -255,7 +246,7 @@ export const evaluate = function(generatedResponse, groundTruth) {
 
     // Validate current model stocks are preserved with correct properties
     for (const currentModelStock of sortedCurrentModelStocks) {
-        let aiStock = sortedAIStocks.find(stockEqualityGTComparatorGenerator(currentModelStock));
+        let aiStock = sortedAIStocks.find((aiStock) => stockNameMatches(aiStock, currentModelStock));
         if (!aiStock) {
             failures.push({
                 type: "Pre-existing stock missing",
@@ -293,7 +284,7 @@ export const evaluate = function(generatedResponse, groundTruth) {
     }
 
     for (const groundTruthStock of sortedTruthStocks) {
-        let aiStock = sortedAIStocks.find(stockEqualityGTComparatorGenerator(groundTruthStock));
+        let aiStock = sortedAIStocks.find((aiStock) => stockNameMatches(aiStock, groundTruthStock));
         if (!aiStock)
             continue; //some error in the test itself
 
@@ -343,7 +334,7 @@ export const evaluate = function(generatedResponse, groundTruth) {
         }
     }
 
-    return failures 
+    return validateEvaluationResult(failures);
 };
 
 export const groups = {
