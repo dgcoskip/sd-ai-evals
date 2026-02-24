@@ -272,8 +272,8 @@ export const evaluate = function(generatedResponse, groundTruth) {
 
             if (!referencedVariable || parseFloat(referencedVariable.equation) !== parseFloat(currentModelStock.equation)) {
                 failures.push({
-                    type: "Incorrect initial value discovered",
-                    details: "Incorrect initial value discovered. Expected " + aiStock.equation + " to be " + currentModelStock.equation
+                    type: "Pre-existing stock initial value changed",
+                    details: "Pre-existing stock initial value changed. Expected " + aiStock.equation + " to be " + currentModelStock.equation
                 });
             }
         }
