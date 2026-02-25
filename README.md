@@ -81,29 +81,58 @@ Contains the engines used by [Stella](https://www.iseesystems.com/store/products
         units?: <string>,
         inflows?: Array<string>,
         outflows?: Array<string>,
+        dimensions?: Array<string>, # Array of dimension names for arrayed variables
+        arrayEquations?: [{ # Used for arrayed variables with element-specific equations
+            equation: <string>,
+            forElements: Array<string> # Array element names matching dimensions
+        }],
+        crossLevelGhostOf?: <string>, # For modular models: references source variable
         graphicalFunction?: {
             points: [
                 {x: <number>, y: <number>}
                 ...
             ]
         }
-    }], 
+    }],
     relationships: [{
-        "reasoning?": <string, explanation for why this relationship is here> 
-        "from": <string, the variable the connection starts wtih>,
-        "to": <string, the variable the connection ends with>,  
-        "polarity": <string "+" or "-" or "" >, 
-        "polarityReasoning?": <string explanation for why this polarity was chosen> 
+        "reasoning?": <string, explanation for why this relationship is here>
+        "from": <string, the variable the connection starts with>,
+        "to": <string, the variable the connection ends with>,
+        "polarity": <string "+" or "-" or "" >,
+        "polarityReasoning?": <string explanation for why this polarity was chosen>
     }],
     specs?: {
         startTime: <number>,
         stopTime: <number>,
         dt?: <number>,
-        timeUnits?: <string>
+        timeUnits?: <string>,
+        arrayDimensions?: [{ # Array dimension definitions
+            name: <string>, # Singular, alphanumeric dimension name
+            type: <string - "labels"|"numeric">,
+            size: <number>, # Number of elements in dimension
+            elements: Array<string> # Element names for this dimension
+        }]
     }
 }
-```  
+```
 ? denotes an optional attribute
+
+### Arrays in SD-JSON
+Variables can be arrayed over one or more dimensions to create multi-dimensional arrays:
+- **Dimensions**: Defined in `specs.arrayDimensions` with name, type (labels/numeric), size, and elements
+- **Arrayed Variables**: Reference dimensions by name in their `dimensions` array (order matters)
+- **Array Equations**:
+  - If all elements use the SAME formula: uses `equation` field only
+  - If elements have DIFFERENT formulas: uses `arrayEquations` array with element-specific equations
+
+### Modules in SD-JSON
+Models can be organized into modules for better structure and encapsulation:
+- **Module Naming**: Use dot notation: `ModuleName.variableName` (e.g., `Hares.population`, `Lynx.births`)
+- **Ghost Variables**: For inter-module references, create cross-level ghost variables:
+  - Set `crossLevelGhostOf` to the fully qualified source variable name
+  - Leave `equation` field empty (empty string)
+  - Ghost variable has same local name as source but exists in consuming module
+  - All equations in consuming module reference the ghost, not the original source
 
 ## Discussion Engine JSON response
 ```
