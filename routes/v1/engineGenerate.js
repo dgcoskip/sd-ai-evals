@@ -4,8 +4,11 @@ import path from 'path'
 import utils from './../../utilities/utils.js'
 import { ModelCapabilities, ModelType, LLMWrapper } from './../../utilities/LLMWrapper.js'
 import logger from './../../utilities/logger.js'
+import GenerateMetricsReporter from './../../utilities/GenerateMetricsReporter.js'
+import config from './../../config.js'
 
 const router = express.Router()
+const reporter = new GenerateMetricsReporter(config.reporterURL)
 
 router.post("/:engine/generate", async (req, res) => {
     const enginePath = path.join(process.cwd(), 'engines', req.params.engine, 'engine.js');
@@ -73,8 +76,21 @@ router.post("/:engine/generate", async (req, res) => {
     if ('currentModel' in req.body) {
       currentModel = req.body.currentModel
     }
-  
+
+    // Track timing for reporter
+    const startTime = Date.now();
     let generateResponse = await instance.generate(prompt, currentModel, engineSpecificParameters);
+    const duration = Date.now() - startTime;
+
+    // Report metrics
+    reporter.report({
+      engine: req.params.engine,
+      underlyingModel: req.body.underlyingModel || null,
+      duration: duration
+    }).catch(err => {
+      // Don't let reporting errors affect the main response
+      console.error('Reporter error:', err);
+    });
   
     if (generateResponse.err) {
       return res.send({
