@@ -20,6 +20,14 @@ WHEN TO USE MODULES:
 - If the existing model HAS modules, maintain and extend the modular structure
 - Only introduce modules when specifically asked by the user
 
+CRITICAL VARIABLE NAMING RULE FOR MODULES:
+- Variable names in modules use ONLY their immediate owning module as prefix: ModuleName.variableName
+- NEVER use full hierarchy path in variable names
+- CORRECT: "Sales.revenue" (even if Sales is nested within Company module)
+- WRONG: "Company.Sales.revenue"
+- Variables are qualified ONLY by their direct parent module, never by ancestor modules
+- Module hierarchy is tracked separately in the modules array via parentModule field
+
 WHEN USING MODULES - GHOST VARIABLE REQUIREMENTS:
 When constructing modular models, you MUST create cross-level ghost variables for ALL inter-module references:
 1. Create the source variable in its computation module
@@ -364,6 +372,7 @@ Here is a complete example of a properly structured modular model (Lynx-Hare pre
 
 Key lessons from this modular example:
 - Module names use dot notation: "ModuleName.variableName"
+- CRITICAL: Variable names use ONLY immediate module prefix, never full hierarchy (e.g., "Hares.population" not "Ecosystem.Hares.population")
 - Cross-level ghost variables are created for inter-module references
 - Ghost variable "Hares.Lynx" references source "Lynx.Lynx" (allows Hares module to use Lynx population)
 - Ghost variable "Lynx.hare density" references source "Hares.hare density" (allows Lynx module to use hare density)
@@ -541,51 +550,53 @@ NEVER identify feedback loops for the user in explanatory text. Let users discov
             return false;
         }) >= 0;
     }
-    async processResponse(originalResponse) {
 
-        const responseHasVariable = (variable) => {
-            return originalResponse.variables.findIndex((v) => {
-                return projectUtils.sameVars(v.name, variable);
-            }) >= 0;
-        };
+    #responseHasVariable(response, variableName) {
+        return response.variables.findIndex((v) => {
+            return projectUtils.sameVars(v.name, variableName);
+        }) >= 0;
+    }
 
-        let origRelationships = originalResponse.relationships || [];
+    #filterInvalidRelationships(response) {
+        let origRelationships = response.relationships || [];
 
-        let relationships = origRelationships.map(relationship => { 
+        let relationships = origRelationships.map(relationship => {
             let ret = Object.assign({}, relationship);
             ret.from = relationship.from.trim();
             ret.to = relationship.to.trim();
-            ret.valid = !projectUtils.sameVars(ret.from, ret.to) && responseHasVariable(ret.from) && responseHasVariable(ret.to);
+            ret.valid = !projectUtils.sameVars(ret.from, ret.to) &&
+                        this.#responseHasVariable(response, ret.from) &&
+                        this.#responseHasVariable(response, ret.to);
             return ret;
         });
-        
-        //filter out any relationship whose .to attribute is a variable that has a crossLevelGhostOf
+
+        // Filter out any relationship whose .to attribute is a variable that has a crossLevelGhostOf
         relationships.forEach(relationship => {
             if (relationship.valid) {
-                const toVariable = originalResponse.variables.find(v => projectUtils.sameVars(v.name, relationship.to));
+                const toVariable = response.variables.find(v => projectUtils.sameVars(v.name, relationship.to));
                 if (toVariable && toVariable.crossLevelGhostOf && toVariable.crossLevelGhostOf.length > 0) {
                     relationship.valid = false;
                 }
             }
         });
 
-        //filter out any relationships that reference array elements with bracket notation
+        // Filter out any relationships that reference array elements with bracket notation
         relationships.forEach(relationship => {
             if (relationship.valid) {
-                //if the to or from has a [ in the name mark it invalid (array element references)
+                // If the to or from has a [ in the name mark it invalid (array element references)
                 if (relationship.from.includes('[') || relationship.to.includes('[')) {
                     relationship.valid = false;
                 }
             }
         });
 
-        //mark for removal any relationships which are duplicates, keep the first one we encounter
-        for (let i=1,len=relationships.length; i < len; ++i) {
-            for (let j=0; j < i; ++j) {
+        // Mark for removal any relationships which are duplicates, keep the first one we encounter
+        for (let i = 1, len = relationships.length; i < len; ++i) {
+            for (let j = 0; j < i; ++j) {
                 let relJ = relationships[j];
                 let relI = relationships[i];
-                
-                //who cares if its an invalid link
+
+                // Who cares if it's an invalid link
                 if (!relI.valid || !relJ.valid)
                     continue;
 
@@ -595,22 +606,23 @@ NEVER identify feedback loops for the user in explanatory text. Let users discov
             }
         }
 
-        //remove the invalid ones, then remove the valid field
-        relationships = relationships.filter((relationship) => { 
+        // Remove the invalid ones, then remove the valid field
+        relationships = relationships.filter((relationship) => {
             return relationship.valid;
         });
 
-        relationships.forEach((relationship) => {             
+        relationships.forEach((relationship) => {
             delete relationship.valid;
         });
-        
-        originalResponse.relationships = relationships;
-        originalResponse.variables = originalResponse.variables || [];
 
+        response.relationships = relationships;
+    }
+
+    #expandGraphicalFunctions(response) {
         // Re-expand flattened graphicalFunction format from LLM
         // LLM sends: graphicalFunction: [{x, y}, ...]
         // We need: graphicalFunction: {points: [{x, y}, ...]}
-        originalResponse.variables.forEach((v) => {
+        response.variables.forEach((v) => {
             if (v.graphicalFunction && Array.isArray(v.graphicalFunction)) {
                 if (v.graphicalFunction.length > 0) {
                     v.graphicalFunction = {
@@ -632,10 +644,12 @@ NEVER identify feedback loops for the user in explanatory text. Let users discov
                 });
             }
         });
+    }
 
-        //go through all variables -- for any stock with inflows/outflows remove dimensions from inflow/outflow names
-        //also remove empty entries or references to non-existent variables
-        originalResponse.variables.forEach((v) => {
+    #cleanStockFlows(response) {
+        // Go through all variables -- for any stock with inflows/outflows remove dimensions from inflow/outflow names
+        // Also remove empty entries or references to non-existent variables
+        response.variables.forEach((v) => {
             if (v.type === "stock") {
                 if (v.inflows && Array.isArray(v.inflows)) {
                     v.inflows = v.inflows
@@ -646,7 +660,7 @@ NEVER identify feedback loops for the user in explanatory text. Let users discov
                                 return false;
                             }
                             // Check if the variable exists
-                            return responseHasVariable(flowName);
+                            return this.#responseHasVariable(response, flowName);
                         });
                 }
                 if (v.outflows && Array.isArray(v.outflows)) {
@@ -658,20 +672,22 @@ NEVER identify feedback loops for the user in explanatory text. Let users discov
                                 return false;
                             }
                             // Check if the variable exists
-                            return responseHasVariable(flowName);
+                            return this.#responseHasVariable(response, flowName);
                         });
                 }
             }
         });
+    }
 
-        //LLMs like gemini-3-flash-preview (before I made it so that all properties are required, but nullable) 
-        //does not like to generate the inflow and outflow lists for stocks.
-        //to solve the problem, we look at the list of relationships to generate the inflow and outflow lists
-        //We do that by going through all of the relationships and if there is a link pointing to a stock from a flow, 
-        //make sure its registered as an inflow or an outflow
+    #inferStockFlowsFromRelationships(response, relationships) {
+        // LLMs like gemini-3-flash-preview (before I made it so that all properties are required, but nullable)
+        // does not like to generate the inflow and outflow lists for stocks.
+        // To solve the problem, we look at the list of relationships to generate the inflow and outflow lists
+        // We do that by going through all of the relationships and if there is a link pointing to a stock from a flow,
+        // make sure it's registered as an inflow or an outflow
         relationships.forEach((relationship) => {
-            const toVariable = originalResponse.variables.find(v => projectUtils.sameVars(v.name, relationship.to));
-            const fromVariable = originalResponse.variables.find(v => projectUtils.sameVars(v.name, relationship.from));
+            const toVariable = response.variables.find(v => projectUtils.sameVars(v.name, relationship.to));
+            const fromVariable = response.variables.find(v => projectUtils.sameVars(v.name, relationship.from));
 
             if (toVariable && toVariable.type === "stock" && fromVariable && fromVariable.type === "flow") {
                 // Initialize inflows and outflows arrays if they don't exist
@@ -694,33 +710,133 @@ NEVER identify feedback loops for the user in explanatory text. Let users discov
                     if (!isInOutflows) {
                         toVariable.outflows.push(fromVariable.name);
                     }
-                } else { //positive polarity or unknown, its an inflow
+                } else { // Positive polarity or unknown, it's an inflow
                     if (!isInInflows) {
                         toVariable.inflows.push(fromVariable.name);
                     }
                 }
             }
         });
+    }
 
-        //this fixes generating flows that are not connected to stocks
-        //fix graphical functions that use DT instead of TIME in their equations
-
-        originalResponse.variables.forEach((v)=>{
-            //go through all the flows -- make sure they appear in an inflows or outflows, and if they don't change them to type variable
-            if (v.type === "flow" && !this.#isFlowUsed(v, originalResponse)) {
+    #fixFlowTypesAndGraphicalFunctions(response) {
+        // This fixes generating flows that are not connected to stocks
+        // Fix graphical functions that use DT instead of TIME in their equations
+        response.variables.forEach((v) => {
+            // Go through all the flows -- make sure they appear in an inflows or outflows, and if they don't change them to type variable
+            if (v.type === "flow" && !this.#isFlowUsed(v, response)) {
                 v.type = "variable";
-                //logger.log("Changing type from flow to variable for... " + v.name);
-                //logger.log(v);
             } else if (v?.graphicalFunction?.points?.length > 0 && v.equation) {
-                //check if equation is "DT" (case insensitive)
+                // Check if equation is "DT" (case insensitive)
                 if (v.equation.trim().toLowerCase() === 'dt') {
                     v.equation = 'TIME';
                 }
             }
         });
+    }
 
-        if (originalResponse.explanation)
-            originalResponse.explanation = await marked.parse(originalResponse.explanation);
+    async #parseExplanation(response) {
+        if (response.explanation) {
+            response.explanation = await marked.parse(response.explanation);
+        }
+    }
+
+    #processAndCleanModules(response) {
+        // Ensure modules array matches actual module usage in variable names
+        // Extract all unique module names from variable names (ModuleName.variableName format)
+        const usedModules = new Set();
+        const moduleNameMapping = new Map(); // Map from normalized name to original name
+
+        response.variables.forEach((v) => {
+            if (v.name && v.name.includes('.')) {
+                const parts = v.name.split('.');
+                // Get all module parts except the last one (which is the variable name)
+                for (let i = 0; i < parts.length - 1; i++) {
+                    const normalizedName = projectUtils.caseFold(parts[i]);
+                    usedModules.add(normalizedName);
+                    // Keep the first occurrence of this module name as the canonical form
+                    if (!moduleNameMapping.has(normalizedName)) {
+                        moduleNameMapping.set(normalizedName, parts[i]);
+                    }
+                }
+            }
+        });
+
+        // Initialize modules array if it doesn't exist
+        if (!response.modules) {
+            response.modules = [];
+        }
+
+        // Build a map of existing modules for quick lookup (using normalized names as keys)
+        // This ensures no duplicates after case folding
+        const existingModulesMap = new Map();
+        response.modules.forEach((m) => {
+            if (m.name) {
+                const normalizedName = projectUtils.caseFold(m.name);
+                // Only add if we haven't seen this normalized name before
+                // This prevents duplicate modules with same name after case folding
+                if (!existingModulesMap.has(normalizedName)) {
+                    existingModulesMap.set(normalizedName, m);
+                }
+            }
+        });
+
+        // Also mark modules as used if they are referenced as parentModule
+        // This ensures parent modules are preserved even if not directly in variable names
+        response.modules.forEach((m) => {
+            if (m.parentModule && m.parentModule.trim().length > 0) {
+                const normalizedParentName = projectUtils.caseFold(m.parentModule);
+                usedModules.add(normalizedParentName);
+                // Preserve the parent module name as seen in the parentModule reference
+                if (!moduleNameMapping.has(normalizedParentName)) {
+                    moduleNameMapping.set(normalizedParentName, m.parentModule);
+                }
+            }
+        });
+
+        // Create new modules array with only used modules
+        // This guarantees no duplicates after case folding since we use a Map with normalized names
+        const newModules = [];
+        usedModules.forEach((normalizedModuleName) => {
+            if (existingModulesMap.has(normalizedModuleName)) {
+                // Keep existing module definition (preserves original capitalization and parentModule)
+                newModules.push(existingModulesMap.get(normalizedModuleName));
+            } else {
+                // Create new module definition with empty parentModule (top-level)
+                // Use the canonical form from the first variable reference
+                newModules.push({
+                    name: moduleNameMapping.get(normalizedModuleName),
+                    parentModule: ""
+                });
+            }
+        });
+
+        response.modules = newModules;
+    }
+
+    async processResponse(originalResponse) {
+        originalResponse.variables = originalResponse.variables || [];
+
+        // Filter and clean relationships
+        this.#filterInvalidRelationships(originalResponse);
+
+        // Expand graphical functions and array equations from flattened LLM format
+        this.#expandGraphicalFunctions(originalResponse);
+
+        // Clean stock inflows/outflows
+        this.#cleanStockFlows(originalResponse);
+
+        // Infer stock flows from relationships
+        this.#inferStockFlowsFromRelationships(originalResponse, originalResponse.relationships);
+
+        // Fix flow types and graphical function equations
+        this.#fixFlowTypesAndGraphicalFunctions(originalResponse);
+
+        // Sync specs.modules array with actual variable usage
+        this.#processAndCleanModules(originalResponse);
+
+        // Parse explanation markdown
+        await this.#parseExplanation(originalResponse);
 
         return originalResponse;
     }

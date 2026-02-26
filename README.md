@@ -75,7 +75,7 @@ Contains the engines used by [Stella](https://www.iseesystems.com/store/products
 {
     variables: [{
         name: <string>,
-        type: <string - stock|flow|variable>,
+        type: <string>, # stock|flow|variable
         equation?: <string>,
         documentation?: <string>,
         units?: <string>,
@@ -95,11 +95,15 @@ Contains the engines used by [Stella](https://www.iseesystems.com/store/products
         }
     }],
     relationships: [{
-        "reasoning?": <string, explanation for why this relationship is here>
-        "from": <string, the variable the connection starts with>,
-        "to": <string, the variable the connection ends with>,
-        "polarity": <string "+" or "-" or "" >,
-        "polarityReasoning?": <string explanation for why this polarity was chosen>
+        reasoning?: <string>, # Explanation for why this relationship is here
+        from: <string>, # The variable the connection starts with
+        to: <string>, # The variable the connection ends with
+        polarity: <string>, # "+" or "-" or ""
+        polarityReasoning?: <string> # Explanation for why this polarity was chosen
+    }],
+    modules?: [{ # Module definitions for hierarchical model organization
+        name: <string>, # Simple module name (alphanumeric + underscores only)
+        parentModule: <string> # Parent module name (empty string if top-level)
     }],
     specs?: {
         startTime: <number>,
@@ -108,7 +112,7 @@ Contains the engines used by [Stella](https://www.iseesystems.com/store/products
         timeUnits?: <string>,
         arrayDimensions?: [{ # Array dimension definitions
             name: <string>, # Singular, alphanumeric dimension name
-            type: <string - "labels"|"numeric">,
+            type: <string>, # "labels" or "numeric"
             size: <number>, # Number of elements in dimension
             elements: Array<string> # Element names for this dimension
         }]
@@ -127,7 +131,11 @@ Variables can be arrayed over one or more dimensions to create multi-dimensional
 
 ### Modules in SD-JSON
 Models can be organized into modules for better structure and encapsulation:
-- **Module Naming**: Use dot notation: `ModuleName.variableName` (e.g., `Hares.population`, `Lynx.births`)
+- **Module Definition**: Modules are defined in the top-level `modules` array:
+  - `name`: Simple module name (alphanumeric + underscores, no spaces, never module-qualified)
+  - `parentModule`: Name of containing module (empty string for top-level modules)
+  - Modules can be nested to create hierarchical structures
+- **Module Naming in Variables**: Use dot notation: `ModuleName.variableName` (e.g., `Hares.population`, `Lynx.births`)
 - **Ghost Variables**: For inter-module references, create cross-level ghost variables:
   - Set `crossLevelGhostOf` to the fully qualified source variable name
   - Leave `equation` field empty (empty string)

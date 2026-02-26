@@ -131,7 +131,6 @@ export class LLMWrapper {
       {label: "GPT-4o", value: 'gpt-4o'},
       {label: "GPT-4o-mini", value: 'gpt-4o-mini'},
       {label: "Gemini 3.1-pro-preview", value: 'gemini-3.1-pro-preview'},
-      {label: "Gemini 3-pro-preview", value: 'gemini-3-pro-preview'},
       {label: "Gemini 3-flash-preview", value: 'gemini-3-flash-preview medium'},
       {label: "Gemini 2.5-flash", value: 'gemini-2.5-flash'},
       {label: "Gemini 2.5-flash-lite", value: 'gemini-2.5-flash-lite'},
@@ -177,8 +176,8 @@ export class LLMWrapper {
     "equation": "The XMILE equation for this variable. CRITICAL: Every variable MUST have either this 'equation' field non-empty OR the 'arrayEquations' array non-empty (never both, never neither). For scalar (non-arrayed) variables: ALWAYS provide a non-empty equation here and leave arrayEquations empty. For arrayed variables where all elements use the SAME formula: provide the equation here and leave arrayEquations empty. For arrayed variables where elements have DIFFERENT formulas: leave this field EMPTY (empty string) and use arrayEquations instead. This equation can be a number, or an algebraic expression of other variables. Make sure that whenever you include a variable name with spaces that you replace those spaces with underscores. If the type for this variable is a stock, then the equation is its initial value, do not use INTEG for the equation of a stock, only its initial value. NEVER use IF THEN ELSE or conditional functions inside of equations. If you want to check for division by zero use the operator //. If this variable is a table function, lookup function or graphical function, the equation should be an algebraic expression containing only the inputs to the function! If a variable is making use of a graphical function only the name of the variable with the graphical function should appear in the equation.",
 
     "type": "There are three types of variables, stock, flow, and variable. A stock is an accumulation of its flows, it is an integral.  A stock can only change because of its flows. A flow is the derivative of a stock.  A plain variable is used for algebraic expressions.",
-    "name": "The name of a variable",
-    "crossLevelGhostOf": "The module qualified name of the variable that this variable is representing from another module",
+    "name": "The name of a variable. CRITICAL MODULE NAMING RULE: For variables in modules, use ONLY the immediate owning module name as a prefix (ModuleName.variableName), NEVER use the full module hierarchy path. Examples: CORRECT: 'Sales.revenue' (even if Sales is nested in Company), WRONG: 'Company.Sales.revenue'. Variable names are ONLY qualified by their direct parent module, never by grandparent or higher-level modules.",
+    "crossLevelGhostOf": "The module qualified name of the variable that this variable is representing from another module. Use only the immediate module name, not the full hierarchy path.",
     "inflows": "Only used on variables that are of type stock.  It is an array of variable names representing flows that add to this stock.",
     "outflows": "Only used on variables that are of type stock.  It is an array of variable names representing flows that subtract from this stock.",
     "documentation": "Documentation for the variable including the reason why it was chosen, what it represents, and a simple explanation why it is calculated this way",
@@ -214,7 +213,11 @@ export class LLMWrapper {
     "variableDimensions": "An ordered list of dimension names that define the subscript structure for this arrayed variable. The order matters: each element in the forElements arrays must correspond positionally to the dimensions listed here (first element matches first dimension, second element matches second dimension, etc.). If empty or omitted, this is a scalar (non-arrayed) variable.",
     "arrayElementEquation": "Specifies the equation for a specific subset of array elements in an arrayed variable. The 'equation' field contains the XMILE equation, and the 'forElements' field specifies which array elements this equation applies to (ordered to match the variable's dimensions list).",
     "arrayEquationForElements": "A comma-separated string of array element names that identifies which specific array element(s) use this equation. Each element name corresponds positionally to the dimensions in the variable's 'dimensions' field (first element name matches first dimension, second matches second, etc.). For single-dimension arrays, this has one element name. For multi-dimensional arrays, this has multiple element names separated by commas in the same order as the dimensions. Example: 'North,Q1' or 'South,Q2'.",
-    "variableArrayEquation": "CRITICAL: Used for arrayed variables when elements need different equations OR for arrayed stocks to specify initial values. Every variable MUST have either this array non-empty OR the 'equation' field non-empty - never both non-empty, never both empty. For arrayed variables: if elements have DIFFERENT formulas, you MUST populate this array with equation objects and leave 'equation' empty (empty string). This is a list of equation objects, where each object specifies an equation and the array elements it applies to (via the forElements field). You MUST provide equations that cover EVERY valid combination of array elements across all dimensions. For arrayed STOCKS, you MUST use this field to provide initial values for each stock element."
+    "variableArrayEquation": "CRITICAL: Used for arrayed variables when elements need different equations OR for arrayed stocks to specify initial values. Every variable MUST have either this array non-empty OR the 'equation' field non-empty - never both non-empty, never both empty. For arrayed variables: if elements have DIFFERENT formulas, you MUST populate this array with equation objects and leave 'equation' empty (empty string). This is a list of equation objects, where each object specifies an equation and the array elements it applies to (via the forElements field). You MUST provide equations that cover EVERY valid combination of array elements across all dimensions. For arrayed STOCKS, you MUST use this field to provide initial values for each stock element.",
+
+    "moduleName": "The name of a module. Must follow variable naming rules: contains only alphanumeric characters and underscores, no spaces or special characters. Should never be module-qualified (do not include parent module names with dots). This is a simple identifier for the module itself.",
+    "parentModule": "The name of the module that contains this module. If this module is at the top level (not nested within another module), this should be an empty string. If nested, this should be the simple name (not module-qualified) of the parent module.",
+    "modules": "A list of module definitions that exist within this model. Each module represents a logical grouping or subsystem within the model hierarchy. Modules can contain variables and can be nested within other modules to create hierarchical model structures."
   };
 
   generateSeldonResponseSchema() {
@@ -389,12 +392,18 @@ export class LLMWrapper {
       
       const SimSpecs = z.object(simSpecsObj).describe(LLMWrapper.SCHEMA_STRINGS.simSpecs);
 
+      const Module = z.object({
+        name: z.string().describe(LLMWrapper.SCHEMA_STRINGS.moduleName),
+        parentModule: z.string().describe(LLMWrapper.SCHEMA_STRINGS.parentModule)
+      });
+
       const Model = z.object({
         variables: Variables,
         relationships: Relationships,
         explanation: z.string().describe(mentorMode ? LLMWrapper.SCHEMA_STRINGS.mentorModeQuantExplanation: LLMWrapper.SCHEMA_STRINGS.quantExplanation),
         title: z.string().describe(LLMWrapper.SCHEMA_STRINGS.title),
-        specs: SimSpecs
+        specs: SimSpecs,
+        modules: z.array(Module).describe(LLMWrapper.SCHEMA_STRINGS.modules)
       });
 
       return Model;

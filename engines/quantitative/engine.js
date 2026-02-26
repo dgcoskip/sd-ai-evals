@@ -76,8 +76,13 @@ Works by sending Google's Gemini Flash 2.5 LLM the user's request along with a s
                     variables: response.variables
                 }
             };
+
+            if (response.modules)
+                returnValue.model.modules = response.modules;
+
             if (response.specs)
                 returnValue.model.specs = response.specs;
+
             return returnValue;
         } catch(err) {
             logger.error(err);

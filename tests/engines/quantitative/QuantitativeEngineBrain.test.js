@@ -417,6 +417,186 @@ describe('QuantitativeEngineBrain', () => {
       const flowA = result.variables.find(v => v.name === 'Flow A');
       expect(flowA.type).toBe('variable'); // Should be converted since not used
     });
+
+    it('should create modules array from variable names with module prefixes', async () => {
+      const originalResponse = {
+        variables: [
+          { name: 'Hares.population', type: 'stock', equation: '5000', inflows: [], outflows: [] },
+          { name: 'Hares.birth_rate', type: 'variable', equation: '0.1' },
+          { name: 'Lynx.population', type: 'stock', equation: '100', inflows: [], outflows: [] },
+          { name: 'Lynx.death_rate', type: 'variable', equation: '0.05' }
+        ],
+        relationships: []
+      };
+
+      const result = await quantitativeEngine.processResponse(originalResponse);
+
+      expect(result.modules).toBeDefined();
+      expect(result.modules).toHaveLength(2);
+
+      const haresModule = result.modules.find(m => m.name === 'Hares');
+      const lynxModule = result.modules.find(m => m.name === 'Lynx');
+
+      expect(haresModule).toBeDefined();
+      expect(haresModule.parentModule).toBe('');
+      expect(lynxModule).toBeDefined();
+      expect(lynxModule.parentModule).toBe('');
+    });
+
+    it('should remove unused modules from modules array', async () => {
+      const originalResponse = {
+        variables: [
+          { name: 'Hares.population', type: 'stock', equation: '5000', inflows: [], outflows: [] }
+        ],
+        modules: [
+          { name: 'Hares', parentModule: '' },
+          { name: 'Lynx', parentModule: '' }, // Not used
+          { name: 'Wolves', parentModule: '' } // Not used
+        ],
+        relationships: []
+      };
+
+      const result = await quantitativeEngine.processResponse(originalResponse);
+
+      expect(result.modules).toHaveLength(1);
+      expect(result.modules[0].name).toBe('Hares');
+      expect(result.modules[0].parentModule).toBe('');
+    });
+
+    it('should preserve existing module parentModule values', async () => {
+      const originalResponse = {
+        variables: [
+          { name: 'Child.variable', type: 'variable', equation: '10' },
+          { name: 'parent.variable', type: 'variable', equation: '11'}
+        ],
+        modules: [
+          { name: 'Parent', parentModule: '' },
+          { name: 'Child', parentModule: 'Parent' }
+        ],
+        relationships: []
+      };
+
+      const result = await quantitativeEngine.processResponse(originalResponse);
+
+      expect(result.modules).toHaveLength(2);
+
+      const parentModule = result.modules.find(m => m.name === 'Parent');
+      const childModule = result.modules.find(m => m.name === 'Child');
+
+      expect(parentModule.parentModule).toBe('');
+      expect(childModule.parentModule).toBe('Parent');
+    });
+
+    it('should handle case-insensitive module name matching', async () => {
+      const originalResponse = {
+        variables: [
+          { name: 'Hares.population', type: 'stock', equation: '5000', inflows: [], outflows: [] },
+          { name: 'HARES.birth_rate', type: 'variable', equation: '0.1' },
+          { name: 'hares.death_rate', type: 'variable', equation: '0.05' }
+        ],
+        modules: [
+          { name: 'Hares', parentModule: '' }
+        ],
+        relationships: []
+      };
+
+      const result = await quantitativeEngine.processResponse(originalResponse);
+
+      expect(result.modules).toHaveLength(1);
+      expect(result.modules[0].name).toBe('Hares'); // Preserves original capitalization
+    });
+
+    it('should add missing modules while preserving existing ones', async () => {
+      const originalResponse = {
+        variables: [
+          { name: 'Hares.population', type: 'stock', equation: '5000', inflows: [], outflows: [] },
+          { name: 'Lynx.population', type: 'stock', equation: '100', inflows: [], outflows: [] }
+        ],
+        modules: [
+          { name: 'Hares', parentModule: '' }
+        ],
+        relationships: []
+      };
+
+      const result = await quantitativeEngine.processResponse(originalResponse);
+
+      expect(result.modules).toHaveLength(2);
+
+      const haresModule = result.modules.find(m => m.name === 'Hares');
+      const lynxModule = result.modules.find(m => m.name === 'Lynx');
+
+      expect(haresModule).toBeDefined();
+      expect(haresModule.parentModule).toBe('');
+      expect(lynxModule).toBeDefined();
+      expect(lynxModule.parentModule).toBe('');
+    });
+
+    it('should use canonical capitalization from first variable reference for new modules', async () => {
+      const originalResponse = {
+        variables: [
+          { name: 'MyModule.var1', type: 'variable', equation: '10' },
+          { name: 'MYMODULE.var2', type: 'variable', equation: '20' },
+          { name: 'mymodule.var3', type: 'variable', equation: '30' }
+        ],
+        relationships: []
+      };
+
+      const result = await quantitativeEngine.processResponse(originalResponse);
+
+      expect(result.modules).toHaveLength(1);
+      expect(result.modules[0].name).toBe('MyModule'); // Uses first occurrence capitalization
+    });
+
+    it('should handle variables without module prefixes', async () => {
+      const originalResponse = {
+        variables: [
+          { name: 'population', type: 'stock', equation: '1000', inflows: [], outflows: [] },
+          { name: 'birth_rate', type: 'variable', equation: '0.05' }
+        ],
+        relationships: []
+      };
+
+      const result = await quantitativeEngine.processResponse(originalResponse);
+
+      expect(result.modules).toBeDefined();
+      expect(result.modules).toHaveLength(0);
+    });
+
+    it('should handle mix of modular and non-modular variables', async () => {
+      const originalResponse = {
+        variables: [
+          { name: 'Hares.population', type: 'stock', equation: '5000', inflows: [], outflows: [] },
+          { name: 'global_parameter', type: 'variable', equation: '10' },
+          { name: 'Lynx.population', type: 'stock', equation: '100', inflows: [], outflows: [] }
+        ],
+        relationships: []
+      };
+
+      const result = await quantitativeEngine.processResponse(originalResponse);
+
+      expect(result.modules).toHaveLength(2);
+
+      const haresModule = result.modules.find(m => m.name === 'Hares');
+      const lynxModule = result.modules.find(m => m.name === 'Lynx');
+
+      expect(haresModule).toBeDefined();
+      expect(lynxModule).toBeDefined();
+    });
+
+    it('should initialize empty modules array if not present', async () => {
+      const originalResponse = {
+        variables: [
+          { name: 'simple_variable', type: 'variable', equation: '10' }
+        ],
+        relationships: []
+      };
+
+      const result = await quantitativeEngine.processResponse(originalResponse);
+
+      expect(result.modules).toBeDefined();
+      expect(Array.isArray(result.modules)).toBe(true);
+      expect(result.modules).toHaveLength(0);
+    });
   });
 
   describe('setupLLMParameters', () => {
